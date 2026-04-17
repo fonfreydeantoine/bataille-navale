@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-// BATAILLE NAVALE — app.js (v2 - fix synchronisation placement)
+// BATAILLE NAVALE — app.js (v3)
 // ═══════════════════════════════════════════════════════════════
 
 const SHIPS_CONFIG = [
@@ -32,16 +32,19 @@ const state = {
 function generateCode() { return Math.random().toString(36).substring(2,8).toUpperCase(); }
 function idx(r,c) { return r*10+c; }
 function toRC(i) { return { r: Math.floor(i/10), c: i%10 }; }
+
 function showScreen(id) {
   document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
   document.getElementById(id).classList.add("active");
 }
+
 function showNotif(msg, duration=2500) {
   const o=document.getElementById("notif-overlay");
   document.getElementById("notif-box").innerHTML=msg;
   o.classList.remove("hidden");
   setTimeout(()=>o.classList.add("hidden"),duration);
 }
+
 function showWeaponReceived(weaponId) {
   const w=WEAPONS_CONFIG[weaponId];
   const el=document.createElement("div");
@@ -50,7 +53,27 @@ function showWeaponReceived(weaponId) {
   document.body.appendChild(el);
   setTimeout(()=>el.remove(),3100);
 }
+
+// ── Cinématique navire coulé ──────────────────────────────────
+function showShipSunk(shipId, isMine) {
+  const ship = SHIPS_CONFIG.find(s=>s.id===shipId);
+  if (!ship) return;
+  const el = document.createElement("div");
+  el.className = "ship-sunk-notif";
+  if (isMine) {
+    el.innerHTML = `💀 Ton ${ship.name} a été coulé !`;
+    el.classList.add("sunk-mine");
+  } else {
+    el.innerHTML = `💥 ${ship.emoji} ${ship.name} ennemi coulé !`;
+    el.classList.add("sunk-enemy");
+  }
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(), 3500);
+}
+
 function rollNextWeaponDelay() { return Math.floor(Math.random()*6)+3; }
+
+// ── ABLY ─────────────────────────────────────────────────────
 
 async function connectAbly(clientId) {
   const ably=new Ably.Realtime({ authUrl:`/api/ably-token?clientId=${encodeURIComponent(clientId)}` });
@@ -99,8 +122,6 @@ window.addEventListener("load",()=>{
 });
 
 // ── ABONNEMENTS ───────────────────────────────────────────────
-// Logique : le HOST est le maître du jeu.
-// Quand les DEUX ont validé leur placement, le HOST envoie "game-start".
 
 function subscribeChannel() {
   const ch=state.channel;
@@ -118,17 +139,13 @@ function subscribeChannel() {
     startPlacement();
   });
 
-  // Reçu quand l'adversaire valide son placement
   ch.subscribe("placement-done",(msg)=>{
     if(msg.data.from===state.pseudo) return;
     state.opponentPlacementDone=true;
-
-    // Si moi aussi j'ai déjà confirmé ET je suis le host → je démarre
     if(state.placementConfirmed && state.role==="host") {
       publish("game-start",{});
       startGame(true);
     }
-    // Si je suis guest et que j'ai déjà confirmé → j'attends game-start (rien à faire)
   });
 
   ch.subscribe("game-start",(msg)=>{
@@ -215,13 +232,9 @@ document.getElementById("btn-confirm-placement").addEventListener("click",()=>{
   if(state.placedShips.size<SHIPS_CONFIG.length) return;
   if(state.placementConfirmed) return;
   state.placementConfirmed=true;
-
   document.getElementById("btn-confirm-placement").textContent="⏳ En attente de l'adversaire...";
   document.getElementById("btn-confirm-placement").disabled=true;
-
   publish("placement-done",{});
-
-  // Si l'adversaire avait déjà confirmé ET je suis le host → je démarre
   if(state.opponentPlacementDone && state.role==="host") {
     publish("game-start",{});
     startGame(true);
@@ -336,7 +349,10 @@ function startGame(myTurnFirst) {
 
 // ── GRILLES ───────────────────────────────────────────────────
 
-function buildGameGrids() { buildGrid("my-grid",false); buildGrid("opponent-grid",true); renderMyGrid(); renderOpponentGrid(); }
+function buildGameGrids() {
+  buildGrid("my-grid",false); buildGrid("opponent-grid",true);
+  renderMyGrid(); renderOpponentGrid();
+}
 
 function buildGrid(id,clickable) {
   const grid=document.getElementById(id); grid.innerHTML="";
@@ -416,7 +432,7 @@ function fireAtCell(i) {
     state.weapons[weapon]--; updateWeaponCounts();
     if(state.weapons[weapon]<=0) selectWeapon("normal");
   }
-  state.myTurn=false; updateTurnIndicator();
+  // Ne pas encore céder le tour — on attend le résultat
   publish("fire",{targets,weapon,mainTarget:i});
 }
 
@@ -439,62 +455,118 @@ function getTargetCells(mainIdx,weapon) {
   return [mainIdx];
 }
 
+// ── Losange option A — rayon 2, ~13 cases ────────────────────
+// Pattern :
+//   O
+//  OOO
+// OOOOO
+//  OOO
+//   O
 function getAtomicCells(mainIdx) {
-  const {r:cr,c:cc}=toRC(mainIdx); const radius=3; const cells=new Set();
-  for(let r=0;r<10;r++) for(let c=0;c<10;c++){
-    const dr=r-cr,dc=c-cc;
-    if((dr*dr)/(radius*radius)+(dc*dc)/(radius*radius)<=1) cells.add(idx(r,c));
+  const {r:cr,c:cc}=toRC(mainIdx);
+  const cells=new Set();
+  for(let r=0;r<10;r++){
+    for(let c=0;c<10;c++){
+      const dr=Math.abs(r-cr);
+      const dc=Math.abs(c-cc);
+      // Losange : |dr| + |dc| <= 2
+      if(dr+dc<=2) cells.add(idx(r,c));
+    }
   }
   return [...cells];
 }
 
 function shuffle(arr){
-  for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}
+  for(let i=arr.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]]=[arr[j],arr[i]];
+  }
 }
 
 // ── RÉCEPTION TIR ENNEMI ──────────────────────────────────────
 
 function handleIncomingFire(data) {
   const {targets}=data; const results=[];
+  const newlySunkShips=[];
+
   targets.forEach(ci=>{
     const shipId=state.myGrid[ci];
     if(shipId&&state.myGridState[ci]!=="hit"){
       state.myGridState[ci]="hit"; state.myShipHP[shipId]--;
-      results.push({idx:ci,result:"hit",shipId,sunk:state.myShipHP[shipId]<=0});
+      const sunk=state.myShipHP[shipId]<=0;
+      if(sunk) newlySunkShips.push(shipId);
+      results.push({idx:ci,result:"hit",shipId,sunk});
     } else if(!shipId&&state.myGridState[ci]===null){
       state.myGridState[ci]="miss";
       results.push({idx:ci,result:"miss",shipId:null,sunk:false});
     }
   });
+
   renderMyGrid(); buildShipStatus();
+
+  // Cinématique côté défenseur
+  newlySunkShips.forEach(shipId=>showShipSunk(shipId, true));
+
   const allSunk=SHIPS_CONFIG.every(s=>state.myShipHP[s.id]<=0);
-  publish("fire-result",{results,gameOver:allSunk});
+
+  // Déterminer si au moins un hit parmi les cases touchées
+  const anyHit=results.some(r=>r.result==="hit");
+
+  publish("fire-result",{results,gameOver:allSunk,anyHit,newlySunkShips});
+
   if(allSunk){endGame(false);return;}
-  state.myTurn=true; updateTurnIndicator();
+
+  // L'adversaire rejoue si hit, sinon c'est mon tour
+  if(!anyHit){
+    state.myTurn=true;
+    updateTurnIndicator();
+  }
+  // Si anyHit : l'adversaire continue, state.myTurn reste false
 }
 
-// ── RÉSULTATS MES TIRS ────────────────────────────────────────
+// ── RÉSULTATS DE MES TIRS ─────────────────────────────────────
 
 function handleFireResult(data) {
-  const {results,gameOver}=data;
+  const {results,gameOver,anyHit,newlySunkShips}=data;
+
   results.forEach(r=>{
     if(r.result==="hit"){
       state.opponentGrid[r.idx]="hit";
-      if(r.sunk&&r.shipId&&!state.opponentSunk.includes(r.shipId)){
-        state.opponentSunk.push(r.shipId);
-        const shipName=SHIPS_CONFIG.find(s=>s.id===r.shipId)?.name||"Bateau";
-        showNotif(`💥 Tu as coulé le ${shipName} adverse !`,2000);
-      }
-    } else { state.opponentGrid[r.idx]="miss"; }
+    } else {
+      state.opponentGrid[r.idx]="miss";
+    }
   });
+
+  // Cinématique navires coulés côté attaquant
+  if(newlySunkShips && newlySunkShips.length>0){
+    newlySunkShips.forEach(shipId=>{
+      if(!state.opponentSunk.includes(shipId)){
+        state.opponentSunk.push(shipId);
+        showShipSunk(shipId, false);
+      }
+    });
+  }
+
   renderOpponentGrid();
   if(gameOver){endGame(true);return;}
-  state.turnCount++; state.nextWeaponIn--;
-  if(state.nextWeaponIn<=0){
-    const keys=Object.keys(WEAPONS_CONFIG);
-    addWeapon(keys[Math.floor(Math.random()*keys.length)]);
-    state.nextWeaponIn=rollNextWeaponDelay();
+
+  // Distribution d'arme (seulement quand le tour change vraiment)
+  if(!anyHit){
+    state.turnCount++; state.nextWeaponIn--;
+    if(state.nextWeaponIn<=0){
+      const keys=Object.keys(WEAPONS_CONFIG);
+      addWeapon(keys[Math.floor(Math.random()*keys.length)]);
+      state.nextWeaponIn=rollNextWeaponDelay();
+    }
+    // Mon tour est terminé, c'est l'adversaire
+    state.myTurn=false;
+  } else {
+    // J'ai touché → je rejoue
+    state.myTurn=true;
+    showNotif("🎯 Touché ! Tu rejoues !", 1800);
   }
+
+  updateTurnIndicator();
 }
 
 // ── TOUR ─────────────────────────────────────────────────────
@@ -543,21 +615,25 @@ function addChatMessage(sender,text,isMe){
   box.appendChild(msg); box.scrollTop=box.scrollHeight;
 }
 
-// ── FIN DE PARTIE ────────────────────────────────────────────
+// ── FIN DE PARTIE ─────────────────────────────────────────────
 
 function endGame(iWon){
   if(iWon) state.score.me++; else state.score.opp++;
   document.getElementById("end-icon").textContent=iWon?"🏆":"💀";
   document.getElementById("end-title").textContent=iWon?"Victoire !":"Défaite !";
-  document.getElementById("end-subtitle").textContent=iWon?"Tu as coulé toute la flotte adverse ! Bravo !":"Ta flotte a été anéantie... Courage !";
+  document.getElementById("end-subtitle").textContent=iWon
+    ?"Tu as coulé toute la flotte adverse ! Bravo !"
+    :"Ta flotte a été anéantie... Courage !";
   document.getElementById("end-score-me").textContent=`${state.pseudo} : ${state.score.me}`;
   document.getElementById("end-score-opp").textContent=`${state.opponentPseudo} : ${state.score.opp}`;
   showScreen("screen-end");
 }
 
 document.getElementById("btn-replay").addEventListener("click",()=>{publish("replay",{});startPlacement();});
+
 function updateScoreBar(){
   document.getElementById("score-val-me").textContent=state.score.me;
   document.getElementById("score-val-opp").textContent=state.score.opp;
 }
+
 window.addEventListener("beforeunload",()=>{if(state.channel) publish("disconnect",{});});
