@@ -83,7 +83,13 @@
         <span class="score-name" id="score-name-me">Moi</span>
         <span class="score-val" id="score-val-me">0</span>
       </div>
-      <div class="score-center">⚓ Bataille Navale</div>
+      <div class="score-center">
+        <span>⚓ Bataille Navale</span>
+        <div class="audio-controls">
+          <button class="audio-btn" id="btn-toggle-music" title="Musique">🎵</button>
+          <button class="audio-btn" id="btn-toggle-sfx" title="Bruitages">🔊</button>
+        </div>
+      </div>
       <div class="score-player" id="score-opponent">
         <span class="score-val" id="score-val-opp">0</span>
         <span class="score-name" id="score-name-opp">Adversaire</span>
@@ -167,6 +173,18 @@
 
   <!-- Ably SDK -->
   <script src="https://cdn.ably.com/lib/ably.min-2.js"></script>
+  <script type="module">
+    import { initAudio, toggleMusic, toggleSfx } from './audio.js';
+    initAudio();
+    document.getElementById('btn-toggle-music').addEventListener('click', () => {
+      const on = toggleMusic();
+      document.getElementById('btn-toggle-music').textContent = on ? '🎵' : '🔇';
+    });
+    document.getElementById('btn-toggle-sfx').addEventListener('click', () => {
+      const on = toggleSfx();
+      document.getElementById('btn-toggle-sfx').textContent = on ? '🔊' : '🔕';
+    });
+  </script>
   <script src="app.js" type="module"></script>
 </body>
 </html>

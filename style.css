@@ -525,3 +525,28 @@ body {
   70%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
   100% { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
 }
+
+/* ═══════════════════════════════════════════
+   CONTRÔLES AUDIO
+═══════════════════════════════════════════ */
+.score-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.audio-controls {
+  display: flex;
+  gap: 8px;
+}
+.audio-btn {
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 3px 8px;
+  transition: background 0.15s;
+  line-height: 1;
+}
+.audio-btn:hover { background: rgba(255,255,255,0.25); }

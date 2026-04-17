@@ -1,3 +1,5 @@
+import { sfxMiss, sfxHit, sfxSunk, sfxAtomic, sfxWeaponReceived, sfxVictory, sfxDefeat, sfxReplay, startMusic } from './audio.js';
+
 // ═══════════════════════════════════════════════════════════════
 // BATAILLE NAVALE — app.js (v3)
 // ═══════════════════════════════════════════════════════════════
@@ -345,6 +347,7 @@ function startGame(myTurnFirst) {
   document.getElementById("score-name-me").textContent=state.pseudo;
   document.getElementById("score-name-opp").textContent=state.opponentPseudo;
   showScreen("screen-game");
+  startMusic();
 }
 
 // ── GRILLES ───────────────────────────────────────────────────
@@ -418,7 +421,7 @@ function updateWeaponCounts() {
   });
 }
 
-function addWeapon(weaponId) { state.weapons[weaponId]++; updateWeaponCounts(); showWeaponReceived(weaponId); }
+function addWeapon(weaponId) { state.weapons[weaponId]++; updateWeaponCounts(); showWeaponReceived(weaponId); sfxWeaponReceived(); }
 
 // ── TIRER ─────────────────────────────────────────────────────
 
@@ -433,6 +436,7 @@ function fireAtCell(i) {
     if(state.weapons[weapon]<=0) selectWeapon("normal");
   }
   // Ne pas encore céder le tour — on attend le résultat
+  if(weapon==="atomic") sfxAtomic();
   publish("fire",{targets,weapon,mainTarget:i});
 }
 
@@ -493,19 +497,21 @@ function handleIncomingFire(data) {
     const shipId=state.myGrid[ci];
     if(shipId&&state.myGridState[ci]!=="hit"){
       state.myGridState[ci]="hit"; state.myShipHP[shipId]--;
+      sfxHit();
       const sunk=state.myShipHP[shipId]<=0;
       if(sunk) newlySunkShips.push(shipId);
       results.push({idx:ci,result:"hit",shipId,sunk});
     } else if(!shipId&&state.myGridState[ci]===null){
       state.myGridState[ci]="miss";
       results.push({idx:ci,result:"miss",shipId:null,sunk:false});
+      sfxMiss();
     }
   });
 
   renderMyGrid(); buildShipStatus();
 
   // Cinématique côté défenseur
-  newlySunkShips.forEach(shipId=>showShipSunk(shipId, true));
+  newlySunkShips.forEach(shipId=>{ showShipSunk(shipId, true); sfxSunk(); });
 
   const allSunk=SHIPS_CONFIG.every(s=>state.myShipHP[s.id]<=0);
 
@@ -618,7 +624,7 @@ function addChatMessage(sender,text,isMe){
 // ── FIN DE PARTIE ─────────────────────────────────────────────
 
 function endGame(iWon){
-  if(iWon) state.score.me++; else state.score.opp++;
+  if(iWon){ state.score.me++; sfxVictory(); } else { state.score.opp++; sfxDefeat(); }
   document.getElementById("end-icon").textContent=iWon?"🏆":"💀";
   document.getElementById("end-title").textContent=iWon?"Victoire !":"Défaite !";
   document.getElementById("end-subtitle").textContent=iWon
