@@ -130,6 +130,16 @@
       <!-- Colonne gauche : mes bateaux -->
       <div class="game-col">
         <h3 class="grid-title">🛡️ Ma flotte</h3>
+        <div class="progress-panel" id="prog-my">
+          <div class="prog-header">
+            <span class="prog-title">Ma flotte</span>
+            <span class="prog-label" id="prog-my-label">17 cases</span>
+          </div>
+          <div class="prog-track">
+            <div class="prog-bar prog-bar-mine" id="prog-my-bar"></div>
+          </div>
+          <div class="prog-ships" id="prog-my-ships"></div>
+        </div>
         <div class="grid-wrapper small">
           <div id="my-grid" class="grid mini-grid"></div>
         </div>
@@ -141,6 +151,12 @@
 
         <div class="turn-indicator" id="turn-indicator">
           <span id="turn-text">En attente...</span>
+        </div>
+        <div class="timer-container" id="timer-container">
+          <div class="timer-track">
+            <div class="timer-bar" id="timer-bar"></div>
+          </div>
+          <span class="timer-label" id="timer-label"></span>
         </div>
 
         <div class="weapon-selector">
@@ -168,6 +184,16 @@
       <!-- Colonne droite : grille adverse -->
       <div class="game-col">
         <h3 class="grid-title">🎯 Zone de tir</h3>
+        <div class="progress-panel" id="prog-opp">
+          <div class="prog-header">
+            <span class="prog-title">Flotte ennemie</span>
+            <span class="prog-label" id="prog-opp-label">17 cases</span>
+          </div>
+          <div class="prog-track">
+            <div class="prog-bar prog-bar-enemy" id="prog-opp-bar"></div>
+          </div>
+          <div class="prog-ships" id="prog-opp-ships"></div>
+        </div>
         <div class="grid-wrapper">
           <div id="opponent-grid" class="grid attack-grid"></div>
         </div>

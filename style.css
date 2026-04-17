@@ -595,3 +595,83 @@ body {
 .level-icon { font-size: 2rem; min-width: 40px; text-align: center; }
 .level-name { font-family: 'Fredoka One', cursive; font-size: 1.3rem; display: block; }
 .level-desc { font-size: 0.85rem; color: var(--ocean-light); display: block; margin-top: 2px; }
+
+/* ═══════════════════════════════════════════
+   TIMER
+═══════════════════════════════════════════ */
+.timer-container {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.timer-track {
+  flex: 1;
+  height: 8px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.timer-bar {
+  height: 100%;
+  width: 100%;
+  border-radius: 4px;
+  background: var(--green);
+  transition: width 0.9s linear, background 0.5s;
+}
+.timer-label {
+  font-family: 'Fredoka One', cursive;
+  font-size: 0.9rem;
+  color: var(--white);
+  min-width: 28px;
+  text-align: right;
+}
+
+/* ═══════════════════════════════════════════
+   PROGRESSION
+═══════════════════════════════════════════ */
+.progress-panel {
+  width: 100%;
+  background: rgba(0,0,0,0.2);
+  border-radius: 12px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.prog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.prog-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--ocean-light);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.prog-label {
+  font-family: 'Fredoka One', cursive;
+  font-size: 0.85rem;
+  color: var(--yellow);
+}
+.prog-track {
+  height: 6px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.prog-bar {
+  height: 100%;
+  width: 0%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+.prog-bar-enemy { background: linear-gradient(90deg, var(--green), #90ee90); }
+.prog-bar-mine  { background: linear-gradient(90deg, var(--coral), #ff9999); }
+.prog-ships {
+  font-size: 0.9rem;
+  letter-spacing: 1px;
+  min-height: 18px;
+}

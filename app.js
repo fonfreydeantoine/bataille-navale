@@ -32,6 +32,10 @@ const state = {
   placementConfirmed: false, opponentPlacementDone: false,
   // Bot
   vsBot: false, bot: null, botGrid: null, botShipHP: {},
+  // Timer
+  timerInterval: null, timerSeconds: 0,
+  // Progression
+  opponentTotalCells: 0,
 };
 
 function generateCode() { return Math.random().toString(36).substring(2,8).toUpperCase(); }
@@ -377,8 +381,11 @@ function startGame(myTurnFirst) {
   updateTurnIndicator(); updateScoreBar();
   document.getElementById("score-name-me").textContent=state.pseudo;
   document.getElementById("score-name-opp").textContent=state.opponentPseudo;
+  // Calcul cases totales adverses (pour progression)
+  state.opponentTotalCells = SHIPS_CONFIG.reduce((sum, s) => sum + s.size, 0);
   showScreen("screen-game");
   startMusic();
+  updateProgressBars();
 }
 
 // ── GRILLES ───────────────────────────────────────────────────
@@ -543,7 +550,7 @@ function handleIncomingFire(data) {
     }
   });
 
-  renderMyGrid(); buildShipStatus();
+  renderMyGrid(); buildShipStatus(); updateProgressBars();
 
   // Cinématique côté défenseur
   newlySunkShips.forEach(shipId=>{ showShipSunk(shipId, true); sfxSunk(); });
@@ -589,7 +596,7 @@ function handleFireResult(data) {
     });
   }
 
-  renderOpponentGrid();
+  renderOpponentGrid(); updateProgressBars();
   if(gameOver){endGame(true);return;}
 
   // Distribution d'arme (seulement quand le tour change vraiment)
@@ -617,8 +624,111 @@ function updateTurnIndicator() {
   const el=document.getElementById("turn-indicator");
   const txt=document.getElementById("turn-text");
   el.className="turn-indicator";
-  if(state.myTurn){el.classList.add("my-turn");txt.textContent="🎯 À TOI DE TIRER !";}
-  else{el.classList.add("opp-turn");txt.textContent=`⏳ ${state.opponentPseudo} tire...`;}
+  if(state.myTurn){
+    el.classList.add("my-turn");
+    txt.textContent="🎯 À TOI DE TIRER !";
+    startTimer();
+  } else {
+    el.classList.add("opp-turn");
+    txt.textContent=`⏳ ${state.opponentPseudo} tire...`;
+    stopTimer();
+  }
+}
+
+// ── TIMER ─────────────────────────────────────────────────────
+
+function startTimer() {
+  stopTimer();
+  state.timerSeconds = 30;
+  updateTimerBar(30);
+  state.timerInterval = setInterval(() => {
+    state.timerSeconds--;
+    updateTimerBar(state.timerSeconds);
+    if (state.timerSeconds <= 0) {
+      stopTimer();
+      autoFire();
+    }
+  }, 1000);
+}
+
+function stopTimer() {
+  if (state.timerInterval) {
+    clearInterval(state.timerInterval);
+    state.timerInterval = null;
+  }
+  updateTimerBar(0);
+}
+
+function updateTimerBar(seconds) {
+  const bar = document.getElementById("timer-bar");
+  const label = document.getElementById("timer-label");
+  if (!bar || !label) return;
+  const pct = (seconds / 30) * 100;
+  bar.style.width = pct + "%";
+  label.textContent = seconds > 0 ? seconds + "s" : "";
+  // Couleur : vert → orange → rouge
+  if (seconds > 15) {
+    bar.style.background = "var(--green)";
+  } else if (seconds > 8) {
+    bar.style.background = "var(--yellow)";
+  } else {
+    bar.style.background = "var(--coral)";
+  }
+}
+
+function autoFire() {
+  if (!state.myTurn) return;
+  // Tir aléatoire sur une case non encore ciblée
+  const available = [];
+  for (let i = 0; i < 100; i++) {
+    if (state.opponentGrid[i] === null) available.push(i);
+  }
+  if (available.length === 0) return;
+  const randIdx = available[Math.floor(Math.random() * available.length)];
+  showNotif("⏰ Temps écoulé ! Tir automatique !", 2000);
+  // Force tir normal
+  const prevWeapon = state.selectedWeapon;
+  state.selectedWeapon = "normal";
+  fireAtCell(randIdx);
+  state.selectedWeapon = prevWeapon;
+}
+
+// ── PROGRESSION ───────────────────────────────────────────────
+
+function updateProgressBars() {
+  // Cases adverses restantes
+  const oppHit = state.opponentGrid.filter(v => v === "hit").length;
+  const oppRemaining = state.opponentTotalCells - oppHit;
+  const oppPct = state.opponentTotalCells > 0
+    ? (oppHit / state.opponentTotalCells) * 100 : 0;
+
+  const oppBar = document.getElementById("prog-opp-bar");
+  const oppLabel = document.getElementById("prog-opp-label");
+  const oppShips = document.getElementById("prog-opp-ships");
+  if (oppBar) oppBar.style.width = oppPct + "%";
+  if (oppLabel) oppLabel.textContent = oppRemaining + " cases";
+
+  // Bateaux adverses restants
+  const oppSunkCount = state.opponentSunk.length;
+  const oppShipsLeft = SHIPS_CONFIG.length - oppSunkCount;
+  if (oppShips) oppShips.textContent = "🚢".repeat(oppShipsLeft) + "💀".repeat(oppSunkCount);
+
+  // Cases de ma flotte restantes
+  const myHit = state.myGridState.filter(v => v === "hit").length;
+  const myTotal = state.opponentTotalCells; // même total
+  const myRemaining = myTotal - myHit;
+  const myPct = myTotal > 0 ? (myHit / myTotal) * 100 : 0;
+
+  const myBar = document.getElementById("prog-my-bar");
+  const myLabel = document.getElementById("prog-my-label");
+  const myShips = document.getElementById("prog-my-ships");
+  if (myBar) myBar.style.width = myPct + "%";
+  if (myLabel) myLabel.textContent = myRemaining + " cases";
+
+  // Mes bateaux restants
+  const mySunkCount = SHIPS_CONFIG.filter(s => state.myShipHP[s.id] <= 0).length;
+  const myShipsLeft = SHIPS_CONFIG.length - mySunkCount;
+  if (myShips) myShips.textContent = "🚢".repeat(myShipsLeft) + "💀".repeat(mySunkCount);
 }
 
 function buildShipStatus() {
@@ -680,7 +790,7 @@ function processBotDefense(targets, weapon) {
     }
   });
 
-  renderOpponentGrid();
+  renderOpponentGrid(); updateProgressBars();
 
   // Cinématique navires coulés
   newlySunkShips.forEach(shipId => {
@@ -777,6 +887,7 @@ function doBotTurn() {
 }
 
 function endGame(iWon){
+  stopTimer();
   if(iWon){ state.score.me++; sfxVictory(); } else { state.score.opp++; sfxDefeat(); }
   document.getElementById("end-icon").textContent=iWon?"🏆":"💀";
   document.getElementById("end-title").textContent=iWon?"Victoire !":"Défaite !";
