@@ -1,0 +1,492 @@
+/* ═══════════════════════════════════════════
+   BASE & VARIABLES
+═══════════════════════════════════════════ */
+:root {
+  --ocean: #1a6fa8;
+  --ocean-dark: #0d4a73;
+  --ocean-light: #4db8ff;
+  --sand: #f5e6c8;
+  --sand-dark: #e0c99a;
+  --coral: #ff6b6b;
+  --coral-dark: #e05252;
+  --green: #5cb85c;
+  --green-dark: #449d44;
+  --yellow: #ffd93d;
+  --yellow-dark: #e6c235;
+  --purple: #9b59b6;
+  --white: #ffffff;
+  --dark: #1a1a2e;
+  --gray: #6c757d;
+  --hit: #ff4444;
+  --miss: #aad4f5;
+  --ship: #4a7fa5;
+  --radius: 12px;
+  --shadow: 0 4px 20px rgba(0,0,0,0.2);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Nunito', sans-serif;
+  background: linear-gradient(135deg, #1a6fa8 0%, #0d4a73 50%, #1a1a2e 100%);
+  min-height: 100vh;
+  color: var(--white);
+  overflow-x: hidden;
+}
+
+/* ═══════════════════════════════════════════
+   ÉCRANS
+═══════════════════════════════════════════ */
+.screen { display: none; }
+.screen.active { display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+
+/* ═══════════════════════════════════════════
+   BOUTONS
+═══════════════════════════════════════════ */
+.btn {
+  font-family: 'Fredoka One', cursive;
+  font-size: 1.1rem;
+  padding: 12px 28px;
+  border: none;
+  border-radius: 50px;
+  cursor: pointer;
+  transition: all 0.2s;
+  letter-spacing: 0.5px;
+}
+.btn:active { transform: scale(0.96); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.btn-primary { background: var(--yellow); color: var(--dark); box-shadow: 0 4px 0 var(--yellow-dark); }
+.btn-primary:hover:not(:disabled) { background: #ffe066; transform: translateY(-2px); }
+.btn-primary:active { transform: translateY(2px); box-shadow: none; }
+
+.btn-secondary { background: var(--coral); color: var(--white); box-shadow: 0 4px 0 var(--coral-dark); }
+.btn-secondary:hover:not(:disabled) { background: #ff8080; transform: translateY(-2px); }
+
+.btn-small {
+  font-size: 0.85rem;
+  padding: 8px 16px;
+  background: rgba(255,255,255,0.15);
+  color: var(--white);
+  box-shadow: none;
+  border: 1px solid rgba(255,255,255,0.3);
+}
+.btn-small:hover { background: rgba(255,255,255,0.25); }
+
+.btn-random { background: rgba(155,89,182,0.4); border-color: var(--purple); }
+
+/* ═══════════════════════════════════════════
+   ÉCRAN ACCUEIL
+═══════════════════════════════════════════ */
+.home-container {
+  text-align: center;
+  padding: 40px 20px;
+}
+.logo-icon { font-size: 5rem; display: block; animation: bob 2s ease-in-out infinite; }
+@keyframes bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12px); }
+}
+.logo h1 {
+  font-family: 'Fredoka One', cursive;
+  font-size: 3.5rem;
+  color: var(--yellow);
+  text-shadow: 3px 3px 0 var(--ocean-dark);
+}
+.tagline { font-size: 1.1rem; color: var(--ocean-light); margin-top: 4px; margin-bottom: 32px; }
+
+.home-form { display: flex; flex-direction: column; gap: 16px; align-items: center; }
+.home-form input[type="text"] {
+  font-family: 'Nunito', sans-serif;
+  font-size: 1.1rem;
+  padding: 12px 20px;
+  border-radius: 50px;
+  border: 2px solid rgba(255,255,255,0.3);
+  background: rgba(255,255,255,0.1);
+  color: var(--white);
+  width: 300px;
+  text-align: center;
+}
+.home-form input::placeholder { color: rgba(255,255,255,0.5); }
+.home-buttons { display: flex; flex-direction: column; gap: 12px; align-items: center; }
+.join-row { display: flex; gap: 10px; align-items: center; }
+.join-row input { width: 160px; }
+
+/* ═══════════════════════════════════════════
+   ÉCRAN LOBBY
+═══════════════════════════════════════════ */
+.lobby-container {
+  text-align: center;
+  background: rgba(255,255,255,0.08);
+  border-radius: 24px;
+  padding: 48px 40px;
+  backdrop-filter: blur(10px);
+}
+.lobby-container h2 { font-family: 'Fredoka One', cursive; font-size: 2rem; color: var(--yellow); margin-bottom: 12px; }
+.code-display {
+  font-family: 'Fredoka One', cursive;
+  font-size: 3.5rem;
+  letter-spacing: 12px;
+  color: var(--yellow);
+  background: rgba(0,0,0,0.3);
+  padding: 20px 32px;
+  border-radius: var(--radius);
+  margin: 20px 0;
+  border: 2px dashed rgba(255,255,255,0.3);
+}
+.waiting-anim { margin-top: 24px; color: var(--ocean-light); font-size: 1rem; }
+.dots span { animation: blink 1.4s infinite; }
+.dots span:nth-child(2) { animation-delay: 0.2s; }
+.dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes blink { 0%,80%,100% { opacity: 0; } 40% { opacity: 1; } }
+
+/* ═══════════════════════════════════════════
+   GRILLES
+═══════════════════════════════════════════ */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 2px;
+  background: rgba(0,0,0,0.3);
+  border-radius: 8px;
+  padding: 4px;
+}
+.cell {
+  width: 44px;
+  height: 44px;
+  border-radius: 4px;
+  background: rgba(77,184,255,0.15);
+  border: 1px solid rgba(77,184,255,0.2);
+  cursor: pointer;
+  transition: all 0.15s;
+  position: relative;
+  overflow: hidden;
+}
+.cell:hover { background: rgba(77,184,255,0.35); }
+.cell.ship { background: var(--ship); border-color: var(--ocean-dark); }
+.cell.ship-preview { background: rgba(74,127,165,0.5); border-color: var(--ocean-light); }
+.cell.ship-invalid { background: rgba(255,100,100,0.4); border-color: var(--coral); }
+.cell.hit {
+  background: var(--hit);
+  border-color: #cc0000;
+  animation: explode 0.4s ease-out;
+}
+.cell.miss {
+  background: var(--miss);
+  border-color: #7ab8d8;
+}
+.cell.hit::after { content: '💥'; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 1.4rem; }
+.cell.miss::after { content: '💧'; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 1rem; }
+.cell.sunk { background: #660000; border-color: #330000; }
+.cell.sunk::after { content: '🔥'; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 1.2rem; }
+
+@keyframes explode {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.4); }
+  100% { transform: scale(1); }
+}
+
+.mini-grid .cell { width: 28px; height: 28px; font-size: 0.7rem; }
+.mini-grid .cell::after { font-size: 0.8rem; }
+
+.attack-grid .cell:not(.hit):not(.miss):hover {
+  background: rgba(255,100,100,0.4);
+  border-color: var(--coral);
+  transform: scale(1.05);
+}
+
+/* ═══════════════════════════════════════════
+   PLACEMENT
+═══════════════════════════════════════════ */
+#screen-placement.active {
+  align-items: flex-start;
+  padding: 20px;
+}
+.placement-container { width: 100%; max-width: 900px; margin: 0 auto; }
+.placement-container h2 {
+  font-family: 'Fredoka One', cursive;
+  font-size: 2rem;
+  color: var(--yellow);
+  text-align: center;
+  margin-bottom: 20px;
+}
+.placement-layout { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; justify-content: center; }
+.ships-panel {
+  background: rgba(255,255,255,0.08);
+  border-radius: 16px;
+  padding: 20px;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ships-panel h3 { font-family: 'Fredoka One', cursive; color: var(--yellow); }
+.ship-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+  border: 2px solid transparent;
+}
+.ship-item:hover { background: rgba(255,255,255,0.1); }
+.ship-item.selected { border-color: var(--yellow); background: rgba(255,217,61,0.15); }
+.ship-item.placed { opacity: 0.4; cursor: not-allowed; }
+.ship-name { font-weight: 700; font-size: 0.85rem; }
+.ship-size { font-size: 0.75rem; color: var(--ocean-light); }
+.ship-visual { display: flex; gap: 2px; }
+.ship-square { width: 12px; height: 12px; background: var(--ship); border-radius: 2px; }
+
+.placement-controls { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ═══════════════════════════════════════════
+   ÉCRAN JEU
+═══════════════════════════════════════════ */
+#screen-game.active {
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: stretch;
+  padding: 0;
+  min-height: 100vh;
+}
+
+.score-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(0,0,0,0.4);
+  padding: 10px 24px;
+  backdrop-filter: blur(10px);
+}
+.score-player { display: flex; align-items: center; gap: 12px; }
+.score-name { font-weight: 700; font-size: 1rem; }
+.score-val {
+  font-family: 'Fredoka One', cursive;
+  font-size: 2rem;
+  color: var(--yellow);
+  min-width: 36px;
+  text-align: center;
+}
+.score-center { font-family: 'Fredoka One', cursive; font-size: 1.1rem; color: var(--ocean-light); }
+
+.game-layout {
+  display: flex;
+  gap: 16px;
+  padding: 16px;
+  flex: 1;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.game-col { display: flex; flex-direction: column; gap: 12px; align-items: center; }
+.center-col { min-width: 240px; max-width: 280px; }
+
+.grid-title {
+  font-family: 'Fredoka One', cursive;
+  font-size: 1.1rem;
+  color: var(--yellow);
+}
+
+/* Indicateur de tour */
+.turn-indicator {
+  text-align: center;
+  padding: 12px 20px;
+  border-radius: 50px;
+  font-family: 'Fredoka One', cursive;
+  font-size: 1.1rem;
+  background: rgba(255,255,255,0.1);
+  border: 2px solid rgba(255,255,255,0.2);
+  transition: all 0.3s;
+}
+.turn-indicator.my-turn {
+  background: rgba(92,184,92,0.25);
+  border-color: var(--green);
+  color: #90ee90;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+.turn-indicator.opp-turn {
+  background: rgba(255,107,107,0.2);
+  border-color: var(--coral);
+  color: var(--coral);
+}
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(92,184,92,0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(92,184,92,0); }
+}
+
+/* Arsenal */
+.weapon-list { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.weapon-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 12px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.9rem;
+}
+.weapon-item:hover { background: rgba(255,255,255,0.15); border-color: var(--yellow); }
+.weapon-item.selected { background: rgba(255,217,61,0.2); border-color: var(--yellow); }
+.weapon-item.normal-selected { background: rgba(92,184,92,0.2); border-color: var(--green); }
+.weapon-icon { font-size: 1.3rem; }
+.weapon-info { flex: 1; }
+.weapon-name { font-weight: 700; font-size: 0.85rem; }
+.weapon-count {
+  font-family: 'Fredoka One', cursive;
+  font-size: 1.1rem;
+  color: var(--yellow);
+  min-width: 24px;
+  text-align: right;
+}
+
+/* Chat */
+.chat-panel {
+  width: 100%;
+  background: rgba(0,0,0,0.3);
+  border-radius: 16px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.chat-messages {
+  height: 140px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-right: 4px;
+}
+.chat-messages::-webkit-scrollbar { width: 4px; }
+.chat-messages::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+
+.chat-msg {
+  font-size: 0.82rem;
+  padding: 4px 8px;
+  border-radius: 8px;
+  word-break: break-word;
+}
+.chat-msg.me { background: rgba(77,184,255,0.2); text-align: right; }
+.chat-msg.opponent { background: rgba(255,255,255,0.08); }
+.chat-msg.system { color: var(--ocean-light); text-align: center; font-style: italic; }
+.chat-msg .sender { font-weight: 700; font-size: 0.75rem; color: var(--yellow); }
+
+.chat-emojis { display: flex; gap: 6px; flex-wrap: wrap; }
+.emoji-btn {
+  background: none;
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1.1rem;
+  padding: 4px 6px;
+  transition: background 0.15s;
+}
+.emoji-btn:hover { background: rgba(255,255,255,0.15); }
+
+.chat-input-row { display: flex; gap: 6px; }
+.chat-input-row input {
+  flex: 1;
+  font-family: 'Nunito', sans-serif;
+  font-size: 0.85rem;
+  padding: 8px 12px;
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.2);
+  background: rgba(255,255,255,0.1);
+  color: var(--white);
+}
+.chat-input-row input::placeholder { color: rgba(255,255,255,0.4); }
+
+/* Status bateaux */
+.my-ships-status { display: flex; flex-direction: column; gap: 4px; font-size: 0.78rem; width: 100%; }
+.ship-status-item { display: flex; align-items: center; gap: 6px; }
+.ship-status-item.sunk-ship { opacity: 0.5; text-decoration: line-through; }
+.ship-status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+.ship-status-dot.sunk { background: var(--coral); }
+
+/* ═══════════════════════════════════════════
+   ÉCRAN FIN
+═══════════════════════════════════════════ */
+.end-container {
+  text-align: center;
+  background: rgba(255,255,255,0.08);
+  border-radius: 24px;
+  padding: 60px 48px;
+  backdrop-filter: blur(10px);
+}
+.end-icon { font-size: 5rem; animation: bounce 0.6s ease infinite alternate; }
+@keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-16px); } }
+.end-container h2 { font-family: 'Fredoka One', cursive; font-size: 3rem; color: var(--yellow); margin: 16px 0 8px; }
+.end-container p { color: var(--ocean-light); font-size: 1.1rem; margin-bottom: 20px; }
+.end-score { font-size: 1.2rem; font-weight: 700; margin-bottom: 32px; color: var(--sand); }
+
+/* ═══════════════════════════════════════════
+   NOTIFICATIONS OVERLAY
+═══════════════════════════════════════════ */
+.notif-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+.notif-overlay.hidden { display: none; }
+.notif-box {
+  background: var(--ocean-dark);
+  border: 3px solid var(--yellow);
+  border-radius: 20px;
+  padding: 32px 40px;
+  text-align: center;
+  max-width: 360px;
+  font-family: 'Fredoka One', cursive;
+  font-size: 1.4rem;
+  color: var(--white);
+  animation: pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+@keyframes pop {
+  0% { transform: scale(0.5); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* ═══════════════════════════════════════════
+   ARME REÇUE — ANIMATION
+═══════════════════════════════════════════ */
+.weapon-received {
+  position: fixed;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, var(--purple), #6c3483);
+  border: 3px solid var(--yellow);
+  border-radius: 20px;
+  padding: 16px 28px;
+  font-family: 'Fredoka One', cursive;
+  font-size: 1.2rem;
+  z-index: 500;
+  text-align: center;
+  animation: slideInOut 3s forwards;
+}
+@keyframes slideInOut {
+  0% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+  15% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  75% { opacity: 1; }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+}
+
+/* ═══════════════════════════════════════════
+   RESPONSIVE
+═══════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .cell { width: 32px; height: 32px; }
+  .mini-grid .cell { width: 22px; height: 22px; }
+  .game-layout { flex-direction: column; }
+  .center-col { max-width: 100%; width: 100%; }
+  .logo h1 { font-size: 2.5rem; }
+  .code-display { font-size: 2.5rem; letter-spacing: 8px; }
+}

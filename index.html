@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>⚓ Bataille Navale</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════════
+       ÉCRAN 1 — ACCUEIL
+  ═══════════════════════════════════════════ -->
+  <div id="screen-home" class="screen active">
+    <div class="home-container">
+      <div class="logo">
+        <span class="logo-icon">⚓</span>
+        <h1>Bataille Navale</h1>
+        <p class="tagline">Le jeu de stratégie explosive !</p>
+      </div>
+      <div class="home-form">
+        <input type="text" id="input-pseudo" placeholder="Ton pseudo..." maxlength="16" />
+        <div class="home-buttons">
+          <button class="btn btn-primary" id="btn-create">🚢 Créer une partie</button>
+          <div class="join-row">
+            <input type="text" id="input-code" placeholder="Code de partie..." maxlength="6" />
+            <button class="btn btn-secondary" id="btn-join">⚓ Rejoindre</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       ÉCRAN 2 — SALLE D'ATTENTE
+  ═══════════════════════════════════════════ -->
+  <div id="screen-lobby" class="screen">
+    <div class="lobby-container">
+      <h2>🎯 Partie créée !</h2>
+      <p>Envoie ce code à ton adversaire :</p>
+      <div class="code-display" id="lobby-code">------</div>
+      <button class="btn btn-small" id="btn-copy-code">📋 Copier le lien</button>
+      <div class="waiting-anim">
+        <span>En attente d'un adversaire</span>
+        <span class="dots"><span>.</span><span>.</span><span>.</span></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       ÉCRAN 3 — PLACEMENT DES BATEAUX
+  ═══════════════════════════════════════════ -->
+  <div id="screen-placement" class="screen">
+    <div class="placement-container">
+      <h2>🚢 Place tes bateaux</h2>
+      <div class="placement-layout">
+        <div class="ships-panel">
+          <h3>Tes bateaux</h3>
+          <div id="ships-list"></div>
+          <div class="placement-controls">
+            <button class="btn btn-small" id="btn-rotate">🔄 Rotation</button>
+            <button class="btn btn-small btn-random" id="btn-random-place">🎲 Aléatoire</button>
+          </div>
+          <button class="btn btn-primary" id="btn-confirm-placement" disabled>✅ Valider</button>
+        </div>
+        <div class="grid-wrapper">
+          <div id="placement-grid" class="grid"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       ÉCRAN 4 — JEU PRINCIPAL
+  ═══════════════════════════════════════════ -->
+  <div id="screen-game" class="screen">
+
+    <!-- Score -->
+    <div class="score-bar">
+      <div class="score-player" id="score-me">
+        <span class="score-name" id="score-name-me">Moi</span>
+        <span class="score-val" id="score-val-me">0</span>
+      </div>
+      <div class="score-center">⚓ Bataille Navale</div>
+      <div class="score-player" id="score-opponent">
+        <span class="score-val" id="score-val-opp">0</span>
+        <span class="score-name" id="score-name-opp">Adversaire</span>
+      </div>
+    </div>
+
+    <div class="game-layout">
+
+      <!-- Colonne gauche : mes bateaux -->
+      <div class="game-col">
+        <h3 class="grid-title">🛡️ Ma flotte</h3>
+        <div class="grid-wrapper small">
+          <div id="my-grid" class="grid mini-grid"></div>
+        </div>
+        <div class="my-ships-status" id="my-ships-status"></div>
+      </div>
+
+      <!-- Colonne centre : actions -->
+      <div class="game-col center-col">
+
+        <div class="turn-indicator" id="turn-indicator">
+          <span id="turn-text">En attente...</span>
+        </div>
+
+        <div class="weapon-selector">
+          <h3>🎒 Mon arsenal</h3>
+          <div id="weapon-list" class="weapon-list"></div>
+        </div>
+
+        <div class="chat-panel">
+          <div id="chat-messages" class="chat-messages"></div>
+          <div class="chat-emojis">
+            <button class="emoji-btn" data-emoji="👊">👊</button>
+            <button class="emoji-btn" data-emoji="💥">💥</button>
+            <button class="emoji-btn" data-emoji="😱">😱</button>
+            <button class="emoji-btn" data-emoji="😂">😂</button>
+            <button class="emoji-btn" data-emoji="👋">👋</button>
+            <button class="emoji-btn" data-emoji="🏳️">🏳️</button>
+          </div>
+          <div class="chat-input-row">
+            <input type="text" id="chat-input" placeholder="Message..." maxlength="80" />
+            <button class="btn btn-small" id="btn-send-chat">➤</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Colonne droite : grille adverse -->
+      <div class="game-col">
+        <h3 class="grid-title">🎯 Zone de tir</h3>
+        <div class="grid-wrapper">
+          <div id="opponent-grid" class="grid attack-grid"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       ÉCRAN 5 — FIN DE PARTIE
+  ═══════════════════════════════════════════ -->
+  <div id="screen-end" class="screen">
+    <div class="end-container">
+      <div class="end-icon" id="end-icon">🏆</div>
+      <h2 id="end-title">Victoire !</h2>
+      <p id="end-subtitle">Tu as coulé toute la flotte adverse !</p>
+      <div class="end-score">
+        <span id="end-score-me">Moi : 0</span>
+        <span> — </span>
+        <span id="end-score-opp">Adversaire : 0</span>
+      </div>
+      <button class="btn btn-primary" id="btn-replay">🔄 Rejouer</button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       OVERLAY — NOTIFICATIONS
+  ═══════════════════════════════════════════ -->
+  <div id="notif-overlay" class="notif-overlay hidden">
+    <div class="notif-box" id="notif-box"></div>
+  </div>
+
+  <!-- Ably SDK -->
+  <script src="https://cdn.ably.com/lib/ably.min-2.js"></script>
+  <script src="app.js" type="module"></script>
+</body>
+</html>
