@@ -24,6 +24,7 @@
         <input type="text" id="input-pseudo" placeholder="Ton pseudo..." maxlength="16" />
         <div class="home-buttons">
           <button class="btn btn-primary" id="btn-create">🚢 Créer une partie</button>
+          <button class="btn btn-bot" id="btn-vs-bot">🤖 Jouer contre le bot</button>
           <div class="join-row">
             <input type="text" id="input-code" placeholder="Code de partie..." maxlength="6" />
             <button class="btn btn-secondary" id="btn-join">⚓ Rejoindre</button>
@@ -45,6 +46,34 @@
       <div class="waiting-anim">
         <span>En attente d'un adversaire</span>
         <span class="dots"><span>.</span><span>.</span><span>.</span></span>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════
+       ÉCRAN 2b — CHOIX NIVEAU BOT
+  ═══════════════════════════════════════════ -->
+  <div id="screen-bot-level" class="screen">
+    <div class="lobby-container">
+      <h2>🤖 Choisir le niveau</h2>
+      <p>Contre qui veux-tu jouer ?</p>
+      <div class="bot-level-buttons">
+        <button class="btn btn-level" id="btn-level-easy">
+          <span class="level-icon">🤖</span>
+          <span class="level-name">Facile</span>
+          <span class="level-desc">Tirs aléatoires</span>
+        </button>
+        <button class="btn btn-level" id="btn-level-medium">
+          <span class="level-icon">🧠</span>
+          <span class="level-name">Moyen</span>
+          <span class="level-desc">Chasse les bateaux</span>
+        </button>
+        <button class="btn btn-level" id="btn-level-hard">
+          <span class="level-icon">💀</span>
+          <span class="level-name">Difficile</span>
+          <span class="level-desc">Stratégie optimisée</span>
+        </button>
       </div>
     </div>
   </div>

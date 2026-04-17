@@ -1,4 +1,5 @@
 import { sfxMiss, sfxHit, sfxSunk, sfxAtomic, sfxWeaponReceived, sfxVictory, sfxDefeat, sfxReplay, startMusic } from './audio.js';
+import { Bot, BOT_DELAY_MS } from './bot.js';
 
 // ═══════════════════════════════════════════════════════════════
 // BATAILLE NAVALE — app.js (v3)
@@ -29,6 +30,8 @@ const state = {
   selectedWeapon: "normal", turnCount: 0, nextWeaponIn: 0,
   score: { me: 0, opp: 0 }, myShipHP: {}, opponentSunk: [],
   placementConfirmed: false, opponentPlacementDone: false,
+  // Bot
+  vsBot: false, bot: null, botGrid: null, botShipHP: {},
 };
 
 function generateCode() { return Math.random().toString(36).substring(2,8).toUpperCase(); }
@@ -112,6 +115,29 @@ document.getElementById("btn-join").addEventListener("click", async()=>{
   setTimeout(()=>publish("join",{pseudo}),500);
 });
 
+// ── BOT MODE ─────────────────────────────────────────────────
+
+document.getElementById("btn-vs-bot").addEventListener("click", () => {
+  const pseudo = document.getElementById("input-pseudo").value.trim();
+  if (!pseudo) { showNotif("Entre ton pseudo d'abord ! 😅"); return; }
+  state.pseudo = pseudo;
+  showScreen("screen-bot-level");
+});
+
+["easy", "medium", "hard"].forEach(level => {
+  document.getElementById(`btn-level-${level}`).addEventListener("click", () => {
+    state.vsBot = true;
+    state.role = "host";
+    state.opponentPseudo = level === "easy" ? "🤖 Robot (Facile)" : level === "medium" ? "🧠 Robot (Moyen)" : "💀 Robot (Difficile)";
+    state.bot = new Bot(level);
+    const { grid, ships } = Bot.placeShips(SHIPS_CONFIG);
+    state.botGrid = grid;
+    state.botShipHP = {};
+    SHIPS_CONFIG.forEach(s => { state.botShipHP[s.id] = s.size; });
+    startPlacement();
+  });
+});
+
 document.getElementById("btn-copy-code").addEventListener("click",()=>{
   const link=`${window.location.origin}${window.location.pathname}?code=${state.roomCode}`;
   navigator.clipboard.writeText(link).then(()=>showNotif("📋 Lien copié !"));
@@ -187,6 +213,7 @@ function subscribeChannel() {
 function startPlacement() {
   state.placementConfirmed=false;
   state.opponentPlacementDone=false;
+  state.opponentSunk=[];
   resetPlacementState();
   buildPlacementGrid();
   buildShipsList();
@@ -236,6 +263,10 @@ document.getElementById("btn-confirm-placement").addEventListener("click",()=>{
   state.placementConfirmed=true;
   document.getElementById("btn-confirm-placement").textContent="⏳ En attente de l'adversaire...";
   document.getElementById("btn-confirm-placement").disabled=true;
+  if (state.vsBot) {
+    startGame(true); // joueur commence toujours
+    return;
+  }
   publish("placement-done",{});
   if(state.opponentPlacementDone && state.role==="host") {
     publish("game-start",{});
@@ -437,6 +468,10 @@ function fireAtCell(i) {
   }
   // Ne pas encore céder le tour — on attend le résultat
   if(weapon==="atomic") sfxAtomic();
+  if (state.vsBot) {
+    processBotDefense(targets, weapon);
+    return;
+  }
   publish("fire",{targets,weapon,mainTarget:i});
 }
 
@@ -623,6 +658,120 @@ function addChatMessage(sender,text,isMe){
 
 // ── FIN DE PARTIE ─────────────────────────────────────────────
 
+// ── LOGIQUE BOT ───────────────────────────────────────────────
+
+function processBotDefense(targets, weapon) {
+  // Calculer les résultats sur la grille du bot
+  const results = [];
+  const newlySunkShips = [];
+
+  targets.forEach(ci => {
+    const shipId = state.botGrid[ci];
+    if (shipId && state.opponentGrid[ci] === null) {
+      state.opponentGrid[ci] = "hit";
+      state.botShipHP[shipId]--;
+      const sunk = state.botShipHP[shipId] <= 0;
+      if (sunk) newlySunkShips.push(shipId);
+      results.push({ idx: ci, result: "hit", shipId, sunk });
+    } else if (!shipId && state.opponentGrid[ci] === null) {
+      state.opponentGrid[ci] = "miss";
+      results.push({ idx: ci, result: "miss", shipId: null, sunk: false });
+    }
+  });
+
+  renderOpponentGrid();
+
+  // Cinématique navires coulés
+  newlySunkShips.forEach(shipId => {
+    if (!state.opponentSunk.includes(shipId)) {
+      state.opponentSunk.push(shipId);
+      showShipSunk(shipId, false);
+      sfxSunk();
+    }
+  });
+
+  // Sons
+  const anyHit = results.some(r => r.result === "hit");
+  if (!anyHit) sfxMiss();
+  else if (newlySunkShips.length === 0) sfxHit();
+
+  // Vérifier victoire joueur
+  const allBotSunk = SHIPS_CONFIG.every(s => state.botShipHP[s.id] <= 0);
+  if (allBotSunk) { endGame(true); return; }
+
+  // Distribution d'arme
+  const givenWeapon = state.bot.tickWeapon();
+  if (givenWeapon) { addWeapon(givenWeapon); }
+
+  if (anyHit) {
+    // Le joueur rejoue
+    state.myTurn = true;
+    showNotif("🎯 Touché ! Tu rejoues !", 1800);
+    updateTurnIndicator();
+  } else {
+    // Tour du bot
+    state.myTurn = false;
+    updateTurnIndicator();
+    setTimeout(doBotTurn, BOT_DELAY_MS);
+  }
+}
+
+function doBotTurn() {
+  if (!state.vsBot) return;
+
+  // Le bot choisit son tir
+  const { mainIdx, weapon, targets } = state.bot.decideShot(state.myGridState.map((v,i) => v));
+
+  // Son atomique si applicable
+  if (weapon === "atomic") sfxAtomic();
+
+  // Calculer les résultats sur la grille du joueur
+  const results = [];
+  const newlySunkShips = [];
+  const filteredTargets = targets.filter(ci => state.myGridState[ci] === null);
+
+  filteredTargets.forEach(ci => {
+    const shipId = state.myGrid[ci];
+    if (shipId) {
+      state.myGridState[ci] = "hit";
+      state.myShipHP[shipId]--;
+      sfxHit();
+      const sunk = state.myShipHP[shipId] <= 0;
+      if (sunk) newlySunkShips.push(shipId);
+      results.push({ idx: ci, result: "hit", shipId, sunk });
+    } else {
+      state.myGridState[ci] = "miss";
+      sfxMiss();
+      results.push({ idx: ci, result: "miss", shipId: null, sunk: false });
+    }
+  });
+
+  // Feedback au bot pour sa stratégie
+  state.bot.processFeedback(filteredTargets, results, state.myGridState);
+
+  renderMyGrid();
+  buildShipStatus();
+
+  // Cinématique navires coulés
+  newlySunkShips.forEach(shipId => { showShipSunk(shipId, true); sfxSunk(); });
+
+  // Vérifier défaite joueur
+  const allPlayerSunk = SHIPS_CONFIG.every(s => state.myShipHP[s.id] <= 0);
+  if (allPlayerSunk) { endGame(false); return; }
+
+  const anyHit = results.some(r => r.result === "hit");
+
+  if (anyHit) {
+    // Bot rejoue
+    showNotif(`⚠️ ${state.opponentPseudo} a touché ! Il rejoue...`, 1800);
+    setTimeout(doBotTurn, BOT_DELAY_MS);
+  } else {
+    // Retour au joueur
+    state.myTurn = true;
+    updateTurnIndicator();
+  }
+}
+
 function endGame(iWon){
   if(iWon){ state.score.me++; sfxVictory(); } else { state.score.opp++; sfxDefeat(); }
   document.getElementById("end-icon").textContent=iWon?"🏆":"💀";
@@ -635,7 +784,20 @@ function endGame(iWon){
   showScreen("screen-end");
 }
 
-document.getElementById("btn-replay").addEventListener("click",()=>{publish("replay",{});startPlacement();});
+document.getElementById("btn-replay").addEventListener("click",()=>{
+  if (state.vsBot) {
+    // Replacer les bateaux du bot
+    const { grid, ships } = Bot.placeShips(SHIPS_CONFIG);
+    state.botGrid = grid;
+    state.botShipHP = {};
+    SHIPS_CONFIG.forEach(s => { state.botShipHP[s.id] = s.size; });
+    state.bot.reset();
+    startPlacement();
+    return;
+  }
+  publish("replay",{});
+  startPlacement();
+});
 
 function updateScoreBar(){
   document.getElementById("score-val-me").textContent=state.score.me;
