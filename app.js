@@ -550,8 +550,9 @@ function handleIncomingFire(data) {
 
   const allSunk=SHIPS_CONFIG.every(s=>state.myShipHP[s.id]<=0);
 
-  // Déterminer si au moins un hit parmi les cases touchées
-  const anyHit=results.some(r=>r.result==="hit");
+  // Rejouer uniquement si la case PRINCIPALE (celle cliquée) est un hit
+  const mainResult = results.find(r => r.idx === data.mainTarget);
+  const anyHit = mainResult ? mainResult.result === "hit" : false;
 
   publish("fire-result",{results,gameOver:allSunk,anyHit,newlySunkShips});
 
@@ -690,8 +691,9 @@ function processBotDefense(targets, weapon) {
     }
   });
 
-  // Sons
-  const anyHit = results.some(r => r.result === "hit");
+  // Rejouer uniquement si la case PRINCIPALE est un hit
+  const mainResult = results.find(r => r.idx === targets[0]);
+  const anyHit = mainResult ? mainResult.result === "hit" : false;
   if (!anyHit) sfxMiss();
   else if (newlySunkShips.length === 0) sfxHit();
 
@@ -759,7 +761,9 @@ function doBotTurn() {
   const allPlayerSunk = SHIPS_CONFIG.every(s => state.myShipHP[s.id] <= 0);
   if (allPlayerSunk) { endGame(false); return; }
 
-  const anyHit = results.some(r => r.result === "hit");
+  // Le bot rejoue seulement si sa case principale était un hit
+  const botMainResult = results.find(r => r.idx === mainIdx);
+  const anyHit = botMainResult ? botMainResult.result === "hit" : false;
 
   if (anyHit) {
     // Bot rejoue
