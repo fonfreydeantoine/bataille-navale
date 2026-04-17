@@ -490,3 +490,38 @@ body {
   .logo h1 { font-size: 2.5rem; }
   .code-display { font-size: 2.5rem; letter-spacing: 8px; }
 }
+
+/* ═══════════════════════════════════════════
+   CINÉMATIQUE NAVIRE COULÉ
+═══════════════════════════════════════════ */
+.ship-sunk-notif {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.5);
+  border-radius: 20px;
+  padding: 24px 36px;
+  font-family: 'Fredoka One', cursive;
+  font-size: 1.6rem;
+  z-index: 800;
+  text-align: center;
+  pointer-events: none;
+  animation: sunkPop 3.5s forwards;
+}
+.ship-sunk-notif.sunk-enemy {
+  background: linear-gradient(135deg, #1a6fa8, #0d4a73);
+  border: 3px solid var(--yellow);
+  color: var(--yellow);
+}
+.ship-sunk-notif.sunk-mine {
+  background: linear-gradient(135deg, #7b1a1a, #4a0000);
+  border: 3px solid var(--coral);
+  color: var(--coral);
+}
+@keyframes sunkPop {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.4); }
+  15%  { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+  25%  { transform: translate(-50%, -50%) scale(1); }
+  70%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+}
