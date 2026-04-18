@@ -36,6 +36,7 @@ const state = {
   // Jeu
   myTurn:false,
   weapons:{ cross:0, random:0, atomic:0 },
+  weaponCaps:{ cross:3, random:1, atomic:1 }, // stock max par partie
   selectedWeapon:"normal",
   turnCount:0, nextWeaponIn:0,
   score:{ me:0, opp:0 },
@@ -321,6 +322,7 @@ function startGame(myTurnFirst){
   state.opponentGrid=Array(100).fill(null);
   state.myGridState=Array(100).fill(null);
   state.weapons={cross:0,random:0,atomic:0};
+  state.weaponCaps={cross:3,random:1,atomic:1};
   state.selectedWeapon="normal";
   state.turnCount=0; state.nextWeaponIn=rollNextWeaponDelay();
   state.myShipHP={}; state.opponentSunk=[];
@@ -515,6 +517,17 @@ function updateWeaponCounts(){
   });
 }
 function addWeapon(weaponId){
+  // Vérifier si le cap est atteint pour cette arme
+  const currentTotal = state.weapons[weaponId];
+  const cap = state.weaponCaps[weaponId];
+  if(currentTotal >= cap){
+    // Cap atteint — essayer une autre arme disponible
+    const available = Object.keys(WEAPONS_CONFIG).filter(k =>
+      state.weapons[k] < state.weaponCaps[k]
+    );
+    if(available.length === 0) return; // toutes les armes sont à leur cap
+    weaponId = available[Math.floor(Math.random() * available.length)];
+  }
   state.weapons[weaponId]++;
   updateWeaponCounts();
   showWeaponReceived(weaponId);
