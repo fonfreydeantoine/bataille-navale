@@ -50,7 +50,6 @@
     </div>
   </div>
 
-
   <!-- ═══════════════════════════════════════════
        ÉCRAN 2b — CHOIX NIVEAU BOT
   ═══════════════════════════════════════════ -->
@@ -61,18 +60,15 @@
       <div class="bot-level-buttons">
         <button class="btn btn-level" id="btn-level-easy">
           <span class="level-icon">🤖</span>
-          <span class="level-name">Facile</span>
-          <span class="level-desc">Tirs aléatoires</span>
+          <div><span class="level-name">Facile</span><span class="level-desc">Tirs aléatoires</span></div>
         </button>
         <button class="btn btn-level" id="btn-level-medium">
           <span class="level-icon">🧠</span>
-          <span class="level-name">Moyen</span>
-          <span class="level-desc">Chasse les bateaux</span>
+          <div><span class="level-name">Moyen</span><span class="level-desc">Chasse les bateaux</span></div>
         </button>
         <button class="btn btn-level" id="btn-level-hard">
           <span class="level-icon">💀</span>
-          <span class="level-name">Difficile</span>
-          <span class="level-desc">Stratégie optimisée</span>
+          <div><span class="level-name">Difficile</span><span class="level-desc">Stratégie optimisée</span></div>
         </button>
       </div>
     </div>
@@ -89,7 +85,7 @@
           <h3>Tes bateaux</h3>
           <div id="ships-list"></div>
           <div class="placement-controls">
-            <button class="btn btn-small" id="btn-rotate">🔄 Rotation</button>
+            <button class="btn btn-small" id="btn-rotate">🔄 Horizontal</button>
             <button class="btn btn-small btn-random" id="btn-random-place">🎲 Aléatoire</button>
           </div>
           <button class="btn btn-primary" id="btn-confirm-placement" disabled>✅ Valider</button>
@@ -106,9 +102,9 @@
   ═══════════════════════════════════════════ -->
   <div id="screen-game" class="screen">
 
-    <!-- Score -->
+    <!-- Barre de score -->
     <div class="score-bar">
-      <div class="score-player" id="score-me">
+      <div class="score-player">
         <span class="score-name" id="score-name-me">Moi</span>
         <span class="score-val" id="score-val-me">0</span>
       </div>
@@ -119,51 +115,65 @@
           <button class="audio-btn" id="btn-toggle-sfx" title="Bruitages">🔊</button>
         </div>
       </div>
-      <div class="score-player" id="score-opponent">
+      <div class="score-player">
         <span class="score-val" id="score-val-opp">0</span>
         <span class="score-name" id="score-name-opp">Adversaire</span>
       </div>
     </div>
 
+    <!-- Layout principal -->
     <div class="game-layout">
 
-      <!-- Colonne gauche : mes bateaux -->
-      <div class="game-col">
-        <h3 class="grid-title">🛡️ Ma flotte</h3>
-        <div class="progress-panel" id="prog-my">
-          <div class="prog-header">
-            <span class="prog-title">Ma flotte</span>
-            <span class="prog-label" id="prog-my-label">17 cases</span>
-          </div>
-          <div class="prog-track">
-            <div class="prog-bar prog-bar-mine" id="prog-my-bar"></div>
-          </div>
-          <div class="prog-ships" id="prog-my-ships"></div>
+      <!-- Grille unique centrale -->
+      <div class="game-grid-col">
+        <div class="grid-titles">
+          <span class="fleet-label my-label">🔵 <span id="label-me">Moi</span></span>
+          <span class="fleet-label opp-label">🔴 <span id="label-opp">Adversaire</span></span>
         </div>
-        <div class="grid-wrapper small">
-          <div id="my-grid" class="grid mini-grid"></div>
-        </div>
-        <div class="my-ships-status" id="my-ships-status"></div>
-      </div>
-
-      <!-- Colonne centre : actions -->
-      <div class="game-col center-col">
-
-        <div class="turn-indicator" id="turn-indicator">
-          <span id="turn-text">En attente...</span>
-        </div>
+        <div id="main-grid" class="grid main-grid"></div>
+        <!-- Timer -->
         <div class="timer-container" id="timer-container">
           <div class="timer-track">
             <div class="timer-bar" id="timer-bar"></div>
           </div>
           <span class="timer-label" id="timer-label"></span>
         </div>
+      </div>
 
+      <!-- Panneau droit -->
+      <div class="game-side-panel">
+
+        <!-- Indicateur de tour -->
+        <div class="turn-indicator" id="turn-indicator">
+          <span id="turn-text">En attente...</span>
+        </div>
+
+        <!-- Progression -->
+        <div class="progress-panel">
+          <div class="prog-row">
+            <span class="prog-title">🔵 Ma flotte</span>
+            <span class="prog-label" id="prog-my-label">17 cases</span>
+          </div>
+          <div class="prog-track"><div class="prog-bar prog-bar-mine" id="prog-my-bar"></div></div>
+          <div class="prog-ships" id="prog-my-ships"></div>
+        </div>
+
+        <div class="progress-panel">
+          <div class="prog-row">
+            <span class="prog-title">🔴 Flotte ennemie</span>
+            <span class="prog-label" id="prog-opp-label">17 cases</span>
+          </div>
+          <div class="prog-track"><div class="prog-bar prog-bar-enemy" id="prog-opp-bar"></div></div>
+          <div class="prog-ships" id="prog-opp-ships"></div>
+        </div>
+
+        <!-- Arsenal -->
         <div class="weapon-selector">
-          <h3>🎒 Mon arsenal</h3>
+          <h3>🎒 Arsenal</h3>
           <div id="weapon-list" class="weapon-list"></div>
         </div>
 
+        <!-- Chat -->
         <div class="chat-panel">
           <div id="chat-messages" class="chat-messages"></div>
           <div class="chat-emojis">
@@ -179,26 +189,8 @@
             <button class="btn btn-small" id="btn-send-chat">➤</button>
           </div>
         </div>
-      </div>
 
-      <!-- Colonne droite : grille adverse -->
-      <div class="game-col">
-        <h3 class="grid-title">🎯 Zone de tir</h3>
-        <div class="progress-panel" id="prog-opp">
-          <div class="prog-header">
-            <span class="prog-title">Flotte ennemie</span>
-            <span class="prog-label" id="prog-opp-label">17 cases</span>
-          </div>
-          <div class="prog-track">
-            <div class="prog-bar prog-bar-enemy" id="prog-opp-bar"></div>
-          </div>
-          <div class="prog-ships" id="prog-opp-ships"></div>
-        </div>
-        <div class="grid-wrapper">
-          <div id="opponent-grid" class="grid attack-grid"></div>
-        </div>
       </div>
-
     </div>
   </div>
 
@@ -219,14 +211,12 @@
     </div>
   </div>
 
-  <!-- ═══════════════════════════════════════════
-       OVERLAY — NOTIFICATIONS
-  ═══════════════════════════════════════════ -->
+  <!-- Overlay notifications -->
   <div id="notif-overlay" class="notif-overlay hidden">
     <div class="notif-box" id="notif-box"></div>
   </div>
 
-  <!-- Ably SDK -->
+  <!-- Scripts -->
   <script src="https://cdn.ably.com/lib/ably.min-2.js"></script>
   <script type="module">
     import { initAudio, toggleMusic, toggleSfx } from './audio.js';

@@ -1,60 +1,67 @@
-import { sfxMiss, sfxHit, sfxSunk, sfxAtomic, sfxWeaponReceived, sfxVictory, sfxDefeat, sfxReplay, startMusic } from './audio.js';
+import { sfxMiss, sfxHit, sfxSunk, sfxAtomic, sfxWeaponReceived, sfxVictory, sfxDefeat, startMusic } from './audio.js';
 import { Bot, BOT_DELAY_MS } from './bot.js';
 
 // ═══════════════════════════════════════════════════════════════
-// BATAILLE NAVALE — app.js (v3)
+// BATAILLE NAVALE — app.js (v5 — grille unique)
 // ═══════════════════════════════════════════════════════════════
 
 const SHIPS_CONFIG = [
-  { id: "carrier",    name: "Porte-avions", size: 5, emoji: "🛳️" },
-  { id: "cruiser",   name: "Croiseur",      size: 4, emoji: "🚢" },
-  { id: "destroyer", name: "Destroyer",     size: 3, emoji: "⛴️" },
-  { id: "submarine", name: "Sous-marin",    size: 3, emoji: "🤿" },
-  { id: "torpedo",   name: "Torpilleur",    size: 2, emoji: "🚤" },
+  { id:"carrier",    name:"Porte-avions", size:5, emoji:"🛳️" },
+  { id:"cruiser",   name:"Croiseur",      size:4, emoji:"🚢" },
+  { id:"destroyer", name:"Destroyer",     size:3, emoji:"⛴️" },
+  { id:"submarine", name:"Sous-marin",    size:3, emoji:"🤿" },
+  { id:"torpedo",   name:"Torpilleur",    size:2, emoji:"🚤" },
 ];
 
 const WEAPONS_CONFIG = {
-  cross:  { id: "cross",  name: "Mine en croix",    icon: "💣" },
-  random: { id: "random", name: "Frappe aléatoire", icon: "🎲" },
-  atomic: { id: "atomic", name: "Bombe atomique",   icon: "☢️" },
+  cross:  { id:"cross",  name:"Mine en croix",    icon:"💣" },
+  random: { id:"random", name:"Frappe aléatoire", icon:"🎲" },
+  atomic: { id:"atomic", name:"Bombe atomique",   icon:"☢️" },
 };
+
+const TOTAL_SHIP_CELLS = SHIPS_CONFIG.reduce((s,sh)=>s+sh.size,0); // 17
 
 const state = {
-  pseudo: "", roomCode: "", role: null,
-  ablyClient: null, channel: null, opponentPseudo: "",
-  myGrid: Array(100).fill(null), myShips: {},
-  selectedShip: null, orientation: "h", placedShips: new Set(),
-  myTurn: false, opponentGrid: Array(100).fill(null),
-  myGridState: Array(100).fill(null),
-  weapons: { cross: 0, random: 0, atomic: 0 },
-  selectedWeapon: "normal", turnCount: 0, nextWeaponIn: 0,
-  score: { me: 0, opp: 0 }, myShipHP: {}, opponentSunk: [],
-  placementConfirmed: false, opponentPlacementDone: false,
-  // Bot
-  vsBot: false, bot: null, botGrid: null, botShipHP: {},
+  pseudo:"", roomCode:"", role:null,
+  ablyClient:null, channel:null, opponentPseudo:"",
+  // Grilles (index 0-99)
+  myGrid:     Array(100).fill(null), // shipId ou null
+  myShips:    {},
+  myGridState:Array(100).fill(null), // "hit"|"miss"|null
+  myShipHP:   {},
+  opponentGrid:Array(100).fill(null), // "hit"|"miss"|"sunk"|null (ce qu'on connaît)
+  opponentSunk:[],
+  // Placement
+  selectedShip:null, orientation:"h", placedShips:new Set(),
+  // Jeu
+  myTurn:false,
+  weapons:{ cross:0, random:0, atomic:0 },
+  selectedWeapon:"normal",
+  turnCount:0, nextWeaponIn:0,
+  score:{ me:0, opp:0 },
+  placementConfirmed:false, opponentPlacementDone:false,
   // Timer
-  timerInterval: null, timerSeconds: 0,
-  // Progression
-  opponentTotalCells: 0,
+  timerInterval:null, timerSeconds:0,
+  // Bot
+  vsBot:false, bot:null, botGrid:null, botShipHP:{},
 };
 
-function generateCode() { return Math.random().toString(36).substring(2,8).toUpperCase(); }
-function idx(r,c) { return r*10+c; }
-function toRC(i) { return { r: Math.floor(i/10), c: i%10 }; }
+// ── Utilitaires ───────────────────────────────────────────────
+function idx(r,c){ return r*10+c; }
+function toRC(i){ return { r:Math.floor(i/10), c:i%10 }; }
+function generateCode(){ return Math.random().toString(36).substring(2,8).toUpperCase(); }
 
-function showScreen(id) {
+function showScreen(id){
   document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
   document.getElementById(id).classList.add("active");
 }
-
-function showNotif(msg, duration=2500) {
+function showNotif(msg,duration=2500){
   const o=document.getElementById("notif-overlay");
   document.getElementById("notif-box").innerHTML=msg;
   o.classList.remove("hidden");
   setTimeout(()=>o.classList.add("hidden"),duration);
 }
-
-function showWeaponReceived(weaponId) {
+function showWeaponReceived(weaponId){
   const w=WEAPONS_CONFIG[weaponId];
   const el=document.createElement("div");
   el.className="weapon-received";
@@ -62,84 +69,51 @@ function showWeaponReceived(weaponId) {
   document.body.appendChild(el);
   setTimeout(()=>el.remove(),3100);
 }
-
-// ── Cinématique navire coulé ──────────────────────────────────
-function showShipSunk(shipId, isMine) {
-  const ship = SHIPS_CONFIG.find(s=>s.id===shipId);
-  if (!ship) return;
-  const el = document.createElement("div");
-  el.className = "ship-sunk-notif";
-  if (isMine) {
-    el.innerHTML = `💀 Ton ${ship.name} a été coulé !`;
-    el.classList.add("sunk-mine");
-  } else {
-    el.innerHTML = `💥 ${ship.emoji} ${ship.name} ennemi coulé !`;
-    el.classList.add("sunk-enemy");
-  }
+function showShipSunk(shipId, isMine){
+  const ship=SHIPS_CONFIG.find(s=>s.id===shipId);
+  if(!ship) return;
+  const el=document.createElement("div");
+  el.className="ship-sunk-notif";
+  el.classList.add(isMine?"sunk-mine":"sunk-enemy");
+  el.innerHTML=isMine?`💀 Ton ${ship.name} a été coulé !`:`💥 ${ship.emoji} ${ship.name} ennemi coulé !`;
   document.body.appendChild(el);
-  setTimeout(()=>el.remove(), 3500);
+  setTimeout(()=>el.remove(),3500);
 }
+function rollNextWeaponDelay(){ return Math.floor(Math.random()*7)+8; } // 8-14 tours
 
-function rollNextWeaponDelay() { return Math.floor(Math.random()*6)+3; }
-
-// ── ABLY ─────────────────────────────────────────────────────
-
-async function connectAbly(clientId) {
+// ── ABLY ──────────────────────────────────────────────────────
+async function connectAbly(clientId){
   const ably=new Ably.Realtime({ authUrl:`/api/ably-token?clientId=${encodeURIComponent(clientId)}` });
   await new Promise((res,rej)=>{ ably.connection.once("connected",res); ably.connection.once("failed",rej); });
   state.ablyClient=ably;
 }
-function publish(event,data) { state.channel.publish(event,{...data,from:state.pseudo}); }
+function publish(event,data){ state.channel.publish(event,{...data,from:state.pseudo}); }
 
-// ── ACCUEIL ──────────────────────────────────────────────────
-
-document.getElementById("btn-create").addEventListener("click", async()=>{
+// ── ACCUEIL ───────────────────────────────────────────────────
+document.getElementById("btn-create").addEventListener("click",async()=>{
   const pseudo=document.getElementById("input-pseudo").value.trim();
-  if(!pseudo){showNotif("Entre ton pseudo d'abord ! 😅");return;}
+  if(!pseudo){ showNotif("Entre ton pseudo d'abord ! 😅"); return; }
   state.pseudo=pseudo; state.role="host"; state.roomCode=generateCode();
-  try{await connectAbly(pseudo);}catch(e){showNotif("Erreur de connexion 😬");return;}
+  try{ await connectAbly(pseudo); }catch(e){ showNotif("Erreur de connexion 😬"); return; }
   state.channel=state.ablyClient.channels.get(`bataille-navale:${state.roomCode}`);
   subscribeChannel();
   document.getElementById("lobby-code").textContent=state.roomCode;
   showScreen("screen-lobby");
 });
 
-document.getElementById("btn-join").addEventListener("click", async()=>{
+document.getElementById("btn-join").addEventListener("click",async()=>{
   const pseudo=document.getElementById("input-pseudo").value.trim();
   const code=document.getElementById("input-code").value.trim().toUpperCase();
-  if(!pseudo){showNotif("Entre ton pseudo d'abord ! 😅");return;}
-  if(!code||code.length!==6){showNotif("Entre un code valide (6 caractères) 🤔");return;}
+  if(!pseudo){ showNotif("Entre ton pseudo d'abord ! 😅"); return; }
+  if(!code||code.length!==6){ showNotif("Entre un code valide (6 caractères) 🤔"); return; }
   state.pseudo=pseudo; state.role="guest"; state.roomCode=code;
-  try{await connectAbly(pseudo);}catch(e){showNotif("Erreur de connexion 😬");return;}
+  try{ await connectAbly(pseudo); }catch(e){ showNotif("Erreur de connexion 😬"); return; }
   state.channel=state.ablyClient.channels.get(`bataille-navale:${code}`);
   subscribeChannel();
   showScreen("screen-lobby");
   document.getElementById("lobby-code").textContent=code;
   document.querySelector(".lobby-container h2").textContent="🎯 Connexion en cours...";
   setTimeout(()=>publish("join",{pseudo}),500);
-});
-
-// ── BOT MODE ─────────────────────────────────────────────────
-
-document.getElementById("btn-vs-bot").addEventListener("click", () => {
-  const pseudo = document.getElementById("input-pseudo").value.trim();
-  if (!pseudo) { showNotif("Entre ton pseudo d'abord ! 😅"); return; }
-  state.pseudo = pseudo;
-  showScreen("screen-bot-level");
-});
-
-["easy", "medium", "hard"].forEach(level => {
-  document.getElementById(`btn-level-${level}`).addEventListener("click", () => {
-    state.vsBot = true;
-    state.role = "host";
-    state.opponentPseudo = level === "easy" ? "🤖 Robot (Facile)" : level === "medium" ? "🧠 Robot (Moyen)" : "💀 Robot (Difficile)";
-    state.bot = new Bot(level);
-    const { grid, ships } = Bot.placeShips(SHIPS_CONFIG);
-    state.botGrid = grid;
-    state.botShipHP = {};
-    SHIPS_CONFIG.forEach(s => { state.botShipHP[s.id] = s.size; });
-    startPlacement();
-  });
 });
 
 document.getElementById("btn-copy-code").addEventListener("click",()=>{
@@ -153,58 +127,51 @@ window.addEventListener("load",()=>{
   if(code) document.getElementById("input-code").value=code.toUpperCase();
 });
 
+// ── BOT ───────────────────────────────────────────────────────
+document.getElementById("btn-vs-bot").addEventListener("click",()=>{
+  const pseudo=document.getElementById("input-pseudo").value.trim();
+  if(!pseudo){ showNotif("Entre ton pseudo d'abord ! 😅"); return; }
+  state.pseudo=pseudo;
+  showScreen("screen-bot-level");
+});
+
+["easy","medium","hard"].forEach(level=>{
+  document.getElementById(`btn-level-${level}`).addEventListener("click",()=>{
+    state.vsBot=true; state.role="host";
+    state.opponentPseudo=level==="easy"?"🤖 Robot (Facile)":level==="medium"?"🧠 Robot (Moyen)":"💀 Robot (Difficile)";
+    state.bot=new Bot(level);
+    const {grid,ships}=Bot.placeShips(SHIPS_CONFIG);
+    state.botGrid=grid;
+    state.botShipHP={};
+    SHIPS_CONFIG.forEach(s=>{ state.botShipHP[s.id]=s.size; });
+    startPlacement();
+  });
+});
+
 // ── ABONNEMENTS ───────────────────────────────────────────────
-
-function subscribeChannel() {
+function subscribeChannel(){
   const ch=state.channel;
-
   ch.subscribe("join",(msg)=>{
     if(state.role!=="host") return;
     state.opponentPseudo=msg.data.pseudo;
     publish("welcome",{pseudo:state.pseudo});
     startPlacement();
   });
-
   ch.subscribe("welcome",(msg)=>{
     if(state.role!=="guest") return;
     state.opponentPseudo=msg.data.pseudo;
     startPlacement();
   });
-
   ch.subscribe("placement-done",(msg)=>{
     if(msg.data.from===state.pseudo) return;
     state.opponentPlacementDone=true;
-    if(state.placementConfirmed && state.role==="host") {
-      publish("game-start",{});
-      startGame(true);
-    }
+    if(state.placementConfirmed&&state.role==="host"){ publish("game-start",{}); startGame(true); }
   });
-
-  ch.subscribe("game-start",(msg)=>{
-    if(state.role!=="guest") return;
-    startGame(false);
-  });
-
-  ch.subscribe("fire",(msg)=>{
-    if(msg.data.from===state.pseudo) return;
-    handleIncomingFire(msg.data);
-  });
-
-  ch.subscribe("fire-result",(msg)=>{
-    if(msg.data.from===state.pseudo) return;
-    handleFireResult(msg.data);
-  });
-
-  ch.subscribe("chat",(msg)=>{
-    if(msg.data.from===state.pseudo) return;
-    addChatMessage(msg.data.from,msg.data.text,false);
-  });
-
-  ch.subscribe("replay",(msg)=>{
-    if(msg.data.from===state.pseudo) return;
-    startPlacement();
-  });
-
+  ch.subscribe("game-start",()=>{ if(state.role!=="guest") return; startGame(false); });
+  ch.subscribe("fire",(msg)=>{ if(msg.data.from===state.pseudo) return; handleIncomingFire(msg.data); });
+  ch.subscribe("fire-result",(msg)=>{ if(msg.data.from===state.pseudo) return; handleFireResult(msg.data); });
+  ch.subscribe("chat",(msg)=>{ if(msg.data.from===state.pseudo) return; addChatMessage(msg.data.from,msg.data.text,false); });
+  ch.subscribe("replay",(msg)=>{ if(msg.data.from===state.pseudo) return; startPlacement(); });
   ch.subscribe("disconnect",(msg)=>{
     if(msg.data.from===state.pseudo) return;
     showNotif("😢 Ton adversaire s'est déconnecté.<br>La page va se recharger...",4000);
@@ -213,25 +180,20 @@ function subscribeChannel() {
 }
 
 // ── PLACEMENT ─────────────────────────────────────────────────
-
-function startPlacement() {
+function startPlacement(){
   state.placementConfirmed=false;
   state.opponentPlacementDone=false;
   state.opponentSunk=[];
-  resetPlacementState();
-  buildPlacementGrid();
-  buildShipsList();
-  showScreen("screen-placement");
-}
-
-function resetPlacementState() {
   state.myGrid=Array(100).fill(null);
   state.myShips={}; state.placedShips=new Set();
   state.selectedShip=null; state.orientation="h";
   document.getElementById("btn-rotate").textContent="🔄 Horizontal";
+  buildShipsList();
+  buildPlacementGrid();
+  showScreen("screen-placement");
 }
 
-function buildShipsList() {
+function buildShipsList(){
   const list=document.getElementById("ships-list"); list.innerHTML="";
   SHIPS_CONFIG.forEach(ship=>{
     const el=document.createElement("div");
@@ -246,7 +208,7 @@ function buildShipsList() {
   });
 }
 
-function selectShip(id) {
+function selectShip(id){
   if(state.placedShips.has(id)) return;
   state.selectedShip=id;
   document.querySelectorAll(".ship-item").forEach(el=>el.classList.toggle("selected",el.dataset.id===id));
@@ -256,10 +218,7 @@ document.getElementById("btn-rotate").addEventListener("click",()=>{
   state.orientation=state.orientation==="h"?"v":"h";
   document.getElementById("btn-rotate").textContent=state.orientation==="h"?"🔄 Horizontal":"🔄 Vertical";
 });
-
-document.getElementById("btn-random-place").addEventListener("click",()=>{
-  randomPlaceAll(); updatePlacementGrid(); updateConfirmButton();
-});
+document.getElementById("btn-random-place").addEventListener("click",()=>{ randomPlaceAll(); updatePlacementGrid(); updateConfirmButton(); });
 
 document.getElementById("btn-confirm-placement").addEventListener("click",()=>{
   if(state.placedShips.size<SHIPS_CONFIG.length) return;
@@ -267,18 +226,12 @@ document.getElementById("btn-confirm-placement").addEventListener("click",()=>{
   state.placementConfirmed=true;
   document.getElementById("btn-confirm-placement").textContent="⏳ En attente de l'adversaire...";
   document.getElementById("btn-confirm-placement").disabled=true;
-  if (state.vsBot) {
-    startGame(true); // joueur commence toujours
-    return;
-  }
+  if(state.vsBot){ startGame(true); return; }
   publish("placement-done",{});
-  if(state.opponentPlacementDone && state.role==="host") {
-    publish("game-start",{});
-    startGame(true);
-  }
+  if(state.opponentPlacementDone&&state.role==="host"){ publish("game-start",{}); startGame(true); }
 });
 
-function buildPlacementGrid() {
+function buildPlacementGrid(){
   const grid=document.getElementById("placement-grid"); grid.innerHTML="";
   for(let i=0;i<100;i++){
     const cell=document.createElement("div");
@@ -290,12 +243,12 @@ function buildPlacementGrid() {
   }
 }
 
-function placeCellClick(i) {
-  if(!state.selectedShip){showNotif("Sélectionne un bateau d'abord ! 🚢");return;}
+function placeCellClick(i){
+  if(!state.selectedShip){ showNotif("Sélectionne un bateau d'abord ! 🚢"); return; }
   const ship=SHIPS_CONFIG.find(s=>s.id===state.selectedShip);
   const cells=getShipCells(i,ship.size,state.orientation);
-  if(!cells||!canPlace(cells)) return;
-  cells.forEach(ci=>{state.myGrid[ci]=state.selectedShip;});
+  if(!cells||!canPlace(cells,null)) return;
+  cells.forEach(ci=>{ state.myGrid[ci]=state.selectedShip; });
   state.myShips[state.selectedShip]=cells.map(ci=>toRC(ci));
   state.placedShips.add(state.selectedShip);
   document.querySelector(`.ship-item[data-id="${state.selectedShip}"]`).classList.add("placed");
@@ -304,24 +257,23 @@ function placeCellClick(i) {
   updatePlacementGrid(); updateConfirmButton();
 }
 
-function placeCellHover(i) {
+function placeCellHover(i){
   if(!state.selectedShip) return;
   clearPreview();
   const ship=SHIPS_CONFIG.find(s=>s.id===state.selectedShip);
   const cells=getShipCells(i,ship.size,state.orientation);
   if(!cells) return;
-  const valid=canPlace(cells);
+  const valid=canPlace(cells,null);
   cells.forEach(ci=>{
     const el=document.querySelector(`#placement-grid .cell[data-idx="${ci}"]`);
-    if(el) el.classList.add(valid?"ship-preview":"ship-invalid");
+    if(el) el.classList.add(valid?"mine-preview":"mine-invalid");
   });
 }
-
-function clearPreview() {
-  document.querySelectorAll("#placement-grid .cell").forEach(el=>el.classList.remove("ship-preview","ship-invalid"));
+function clearPreview(){
+  document.querySelectorAll("#placement-grid .cell").forEach(el=>el.classList.remove("mine-preview","mine-invalid"));
 }
 
-function getShipCells(startIdx,size,orientation) {
+function getShipCells(startIdx,size,orientation){
   const {r,c}=toRC(startIdx); const cells=[];
   for(let i=0;i<size;i++){
     const nr=r+(orientation==="v"?i:0);
@@ -331,23 +283,20 @@ function getShipCells(startIdx,size,orientation) {
   }
   return cells;
 }
+function canPlace(cells){ return cells.every(ci=>state.myGrid[ci]===null); }
 
-function canPlace(cells) { return cells.every(ci=>state.myGrid[ci]===null); }
-
-function updatePlacementGrid() {
+function updatePlacementGrid(){
   document.querySelectorAll("#placement-grid .cell").forEach((el,i)=>{
     el.className="cell";
-    if(state.myGrid[i]) el.classList.add("ship");
+    if(state.myGrid[i]) el.classList.add("mine");
   });
 }
-
-function updateConfirmButton() {
+function updateConfirmButton(){
   const btn=document.getElementById("btn-confirm-placement");
   btn.disabled=state.placedShips.size<SHIPS_CONFIG.length;
   if(!btn.disabled) btn.textContent="✅ Valider";
 }
-
-function randomPlaceAll() {
+function randomPlaceAll(){
   state.myGrid=Array(100).fill(null); state.myShips={}; state.placedShips=new Set();
   SHIPS_CONFIG.forEach(ship=>{
     let placed=false,attempts=0;
@@ -357,74 +306,183 @@ function randomPlaceAll() {
       const startIdx=Math.floor(Math.random()*100);
       const cells=getShipCells(startIdx,ship.size,orientation);
       if(!cells||!canPlace(cells)) continue;
-      cells.forEach(ci=>{state.myGrid[ci]=ship.id;});
+      cells.forEach(ci=>{ state.myGrid[ci]=ship.id; });
       state.myShips[ship.id]=cells.map(ci=>toRC(ci));
       state.placedShips.add(ship.id); placed=true;
     }
   });
-  document.querySelectorAll(".ship-item").forEach(el=>{el.classList.add("placed");el.classList.remove("selected");});
+  document.querySelectorAll(".ship-item").forEach(el=>{ el.classList.add("placed"); el.classList.remove("selected"); });
   state.selectedShip=null;
 }
 
-// ── DÉMARRAGE DU JEU ─────────────────────────────────────────
-
-function startGame(myTurnFirst) {
+// ── DÉMARRAGE DU JEU ──────────────────────────────────────────
+function startGame(myTurnFirst){
   state.myTurn=myTurnFirst;
   state.opponentGrid=Array(100).fill(null);
   state.myGridState=Array(100).fill(null);
   state.weapons={cross:0,random:0,atomic:0};
-  state.selectedWeapon="normal"; state.turnCount=0;
-  state.nextWeaponIn=rollNextWeaponDelay();
+  state.selectedWeapon="normal";
+  state.turnCount=0; state.nextWeaponIn=rollNextWeaponDelay();
   state.myShipHP={}; state.opponentSunk=[];
-  SHIPS_CONFIG.forEach(s=>{state.myShipHP[s.id]=s.size;});
-  buildGameGrids(); buildWeaponList(); buildShipStatus();
-  updateTurnIndicator(); updateScoreBar();
+  SHIPS_CONFIG.forEach(s=>{ state.myShipHP[s.id]=s.size; });
+
+  buildMainGrid();
+  buildWeaponList();
+  updateTurnIndicator();
+  updateScoreBar();
+  updateProgressBars();
+
   document.getElementById("score-name-me").textContent=state.pseudo;
   document.getElementById("score-name-opp").textContent=state.opponentPseudo;
-  // Calcul cases totales adverses (pour progression)
-  state.opponentTotalCells = SHIPS_CONFIG.reduce((sum, s) => sum + s.size, 0);
+  document.getElementById("label-me").textContent=state.pseudo;
+  document.getElementById("label-opp").textContent=state.opponentPseudo;
+
   showScreen("screen-game");
   startMusic();
-  updateProgressBars();
 }
 
-// ── GRILLES ───────────────────────────────────────────────────
+// ── GRILLE UNIQUE ──────────────────────────────────────────────
+// La grille a 20 colonnes : 0-9 = ma flotte (gauche), 10-19 = flotte adverse (droite)
+// Chaque case de la grille visuele mappe vers :
+//   colonne visuelle 0-9  → index grille 0-99 (ma flotte)
+//   colonne visuelle 10-19 → index grille 0-99 (flotte adverse)
 
-function buildGameGrids() {
-  buildGrid("my-grid",false); buildGrid("opponent-grid",true);
-  renderMyGrid(); renderOpponentGrid();
+function buildMainGrid(){
+  const grid=document.getElementById("main-grid"); grid.innerHTML="";
+
+  // Séparateur
+  const divider=document.createElement("div");
+  divider.className="grid-divider";
+  grid.appendChild(divider);
+
+  // 10 rangées × 20 colonnes = 200 cellules
+  for(let r=0;r<10;r++){
+    for(let col=0;col<20;col++){
+      const cell=document.createElement("div");
+      cell.className="cell";
+      if(col<10){
+        // Ma flotte
+        const gi=idx(r,col);
+        cell.dataset.side="me"; cell.dataset.gi=gi;
+      } else {
+        // Flotte adverse — cliquable
+        const gi=idx(r,col-10);
+        cell.dataset.side="opp"; cell.dataset.gi=gi;
+        cell.classList.add("attackable");
+        cell.addEventListener("click",()=>fireAtCell(gi));
+      }
+      grid.appendChild(cell);
+    }
+  }
+  renderMainGrid();
 }
 
-function buildGrid(id,clickable) {
-  const grid=document.getElementById(id); grid.innerHTML="";
-  for(let i=0;i<100;i++){
-    const cell=document.createElement("div"); cell.className="cell"; cell.dataset.idx=i;
-    if(clickable) cell.addEventListener("click",()=>fireAtCell(i));
-    grid.appendChild(cell);
+function renderMainGrid(){
+  document.querySelectorAll("#main-grid .cell").forEach(cell=>{
+    const side=cell.dataset.side;
+    const gi=parseInt(cell.dataset.gi);
+    cell.className="cell";
+    if(side==="opp") cell.classList.add("attackable");
+
+    if(side==="me"){
+      // Ma flotte
+      if(state.myGrid[gi]) cell.classList.add("mine");
+      const st=state.myGridState[gi];
+      if(st==="hit"){
+        const shipId=state.myGrid[gi];
+        if(state.myShipHP[shipId]<=0) cell.classList.add("sunk-mine");
+        else cell.classList.add("hit-mine");
+      }
+      if(st==="miss") cell.classList.add("miss");
+    } else {
+      // Flotte adverse
+      const st=state.opponentGrid[gi];
+      if(st==="hit") cell.classList.add("hit-opp");
+      if(st==="miss") cell.classList.add("miss");
+      if(st==="sunk") cell.classList.add("sunk-opp");
+    }
+  });
+}
+
+// ── TIMER ─────────────────────────────────────────────────────
+function startTimer(){
+  stopTimer();
+  state.timerSeconds=30;
+  updateTimerBar(30);
+  state.timerInterval=setInterval(()=>{
+    state.timerSeconds--;
+    updateTimerBar(state.timerSeconds);
+    if(state.timerSeconds<=0){ stopTimer(); autoFire(); }
+  },1000);
+}
+function stopTimer(){
+  if(state.timerInterval){ clearInterval(state.timerInterval); state.timerInterval=null; }
+  updateTimerBar(0);
+}
+function updateTimerBar(seconds){
+  const bar=document.getElementById("timer-bar");
+  const label=document.getElementById("timer-label");
+  if(!bar||!label) return;
+  bar.style.width=(seconds/30*100)+"%";
+  label.textContent=seconds>0?seconds+"s":"";
+  bar.style.background=seconds>15?"var(--green)":seconds>8?"var(--yellow)":"var(--coral)";
+}
+function autoFire(){
+  if(!state.myTurn) return;
+  const available=[];
+  for(let i=0;i<100;i++) if(state.opponentGrid[i]===null) available.push(i);
+  if(available.length===0) return;
+  const randIdx=available[Math.floor(Math.random()*available.length)];
+  showNotif("⏰ Temps écoulé ! Tir automatique !",2000);
+  const prev=state.selectedWeapon; state.selectedWeapon="normal";
+  fireAtCell(randIdx);
+  state.selectedWeapon=prev;
+}
+
+// ── TOUR ──────────────────────────────────────────────────────
+function updateTurnIndicator(){
+  const el=document.getElementById("turn-indicator");
+  const txt=document.getElementById("turn-text");
+  el.className="turn-indicator";
+  if(state.myTurn){
+    el.classList.add("my-turn"); txt.textContent="🎯 À TOI DE TIRER !";
+    startTimer();
+  } else {
+    el.classList.add("opp-turn"); txt.textContent=`⏳ ${state.opponentPseudo} tire...`;
+    stopTimer();
   }
 }
 
-function renderMyGrid() {
-  document.querySelectorAll("#my-grid .cell").forEach((el,i)=>{
-    el.className="cell";
-    if(state.myGrid[i]) el.classList.add("ship");
-    if(state.myGridState[i]==="hit") el.classList.add("hit");
-    if(state.myGridState[i]==="miss") el.classList.add("miss");
-  });
-}
-
-function renderOpponentGrid() {
-  document.querySelectorAll("#opponent-grid .cell").forEach((el,i)=>{
-    el.className="cell";
-    if(state.opponentGrid[i]==="hit") el.classList.add("hit");
-    if(state.opponentGrid[i]==="miss") el.classList.add("miss");
-    if(state.opponentGrid[i]==="sunk") el.classList.add("sunk");
-  });
+// ── PROGRESSION ───────────────────────────────────────────────
+function updateProgressBars(){
+  // Ma flotte
+  const myHit=state.myGridState.filter(v=>v==="hit").length;
+  const myPct=(myHit/TOTAL_SHIP_CELLS)*100;
+  const myEl=document.getElementById("prog-my-bar");
+  const myLabel=document.getElementById("prog-my-label");
+  const myShips=document.getElementById("prog-my-ships");
+  if(myEl) myEl.style.width=myPct+"%";
+  if(myLabel) myLabel.textContent=(TOTAL_SHIP_CELLS-myHit)+" cases";
+  if(myShips){
+    const mySunk=SHIPS_CONFIG.filter(s=>state.myShipHP[s.id]<=0).length;
+    myShips.textContent="🚢".repeat(SHIPS_CONFIG.length-mySunk)+"💀".repeat(mySunk);
+  }
+  // Flotte adverse
+  const oppHit=state.opponentGrid.filter(v=>v==="hit"||v==="sunk").length;
+  const oppPct=(oppHit/TOTAL_SHIP_CELLS)*100;
+  const oppEl=document.getElementById("prog-opp-bar");
+  const oppLabel=document.getElementById("prog-opp-label");
+  const oppShips=document.getElementById("prog-opp-ships");
+  if(oppEl) oppEl.style.width=oppPct+"%";
+  if(oppLabel) oppLabel.textContent=(TOTAL_SHIP_CELLS-oppHit)+" cases";
+  if(oppShips){
+    const oppSunk=state.opponentSunk.length;
+    oppShips.textContent="🚢".repeat(SHIPS_CONFIG.length-oppSunk)+"💀".repeat(oppSunk);
+  }
 }
 
 // ── ARSENAL ───────────────────────────────────────────────────
-
-function buildWeaponList() {
+function buildWeaponList(){
   const list=document.getElementById("weapon-list");
   list.innerHTML=`<div class="weapon-item normal-selected" data-weapon="normal" onclick="selectWeapon('normal')">
     <span class="weapon-icon">🔫</span>
@@ -440,7 +498,6 @@ function buildWeaponList() {
     list.appendChild(el);
   });
 }
-
 window.selectWeapon=function(id){
   if(id!=="normal"&&state.weapons[id]<=0) return;
   state.selectedWeapon=id;
@@ -449,8 +506,7 @@ window.selectWeapon=function(id){
     if(el.dataset.weapon===id) el.classList.add(id==="normal"?"normal-selected":"selected");
   });
 };
-
-function updateWeaponCounts() {
+function updateWeaponCounts(){
   Object.keys(WEAPONS_CONFIG).forEach(id=>{
     const el=document.getElementById(`wcount-${id}`);
     if(el) el.textContent=state.weapons[id];
@@ -458,31 +514,27 @@ function updateWeaponCounts() {
     if(item) item.style.opacity=state.weapons[id]>0?"1":"0.4";
   });
 }
-
-function addWeapon(weaponId) { state.weapons[weaponId]++; updateWeaponCounts(); showWeaponReceived(weaponId); sfxWeaponReceived(); }
+function addWeapon(weaponId){
+  state.weapons[weaponId]++;
+  updateWeaponCounts();
+  showWeaponReceived(weaponId);
+  sfxWeaponReceived();
+}
 
 // ── TIRER ─────────────────────────────────────────────────────
-
-function fireAtCell(i) {
-  if(!state.myTurn){showNotif("C'est le tour de ton adversaire ! ⏳");return;}
-  if(state.opponentGrid[i]!==null){showNotif("Tu as déjà tiré ici ! 🙄");return;}
+function fireAtCell(i){
+  if(!state.myTurn){ showNotif("C'est le tour de ton adversaire ! ⏳"); return; }
+  if(state.opponentGrid[i]!==null){ showNotif("Tu as déjà tiré ici ! 🙄"); return; }
   const weapon=state.selectedWeapon;
   let targets=getTargetCells(i,weapon).filter(ci=>state.opponentGrid[ci]===null);
-  if(targets.length===0){showNotif("Toutes ces cases ont déjà été ciblées !");return;}
-  if(weapon!=="normal"){
-    state.weapons[weapon]--; updateWeaponCounts();
-    if(state.weapons[weapon]<=0) selectWeapon("normal");
-  }
-  // Ne pas encore céder le tour — on attend le résultat
+  if(targets.length===0){ showNotif("Toutes ces cases ont déjà été ciblées !"); return; }
+  if(weapon!=="normal"){ state.weapons[weapon]--; updateWeaponCounts(); if(state.weapons[weapon]<=0) selectWeapon("normal"); }
   if(weapon==="atomic") sfxAtomic();
-  if (state.vsBot) {
-    processBotDefense(targets, weapon);
-    return;
-  }
+  if(state.vsBot){ processBotDefense(targets,weapon,i); return; }
   publish("fire",{targets,weapon,mainTarget:i});
 }
 
-function getTargetCells(mainIdx,weapon) {
+function getTargetCells(mainIdx,weapon){
   if(weapon==="normal") return [mainIdx];
   if(weapon==="cross"){
     const {r,c}=toRC(mainIdx); const cells=[mainIdx];
@@ -497,268 +549,220 @@ function getTargetCells(mainIdx,weapon) {
     for(let i=0;i<Math.min(5,available.length);i++) cells.add(available[i]);
     return [...cells];
   }
-  if(weapon==="atomic") return getAtomicCells(mainIdx);
+  if(weapon==="atomic"){
+    const {r:cr,c:cc}=toRC(mainIdx); const cells=new Set();
+    for(let r=0;r<10;r++) for(let c=0;c<10;c++){
+      if(Math.abs(r-cr)+Math.abs(c-cc)<=2) cells.add(idx(r,c));
+    }
+    return [...cells];
+  }
   return [mainIdx];
 }
 
-// ── Losange option A — rayon 2, ~13 cases ────────────────────
-// Pattern :
-//   O
-//  OOO
-// OOOOO
-//  OOO
-//   O
-function getAtomicCells(mainIdx) {
-  const {r:cr,c:cc}=toRC(mainIdx);
-  const cells=new Set();
-  for(let r=0;r<10;r++){
-    for(let c=0;c<10;c++){
-      const dr=Math.abs(r-cr);
-      const dc=Math.abs(c-cc);
-      // Losange : |dr| + |dc| <= 2
-      if(dr+dc<=2) cells.add(idx(r,c));
-    }
-  }
-  return [...cells];
+function shuffle(arr){
+  for(let i=arr.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; }
 }
 
-function shuffle(arr){
-  for(let i=arr.length-1;i>0;i--){
-    const j=Math.floor(Math.random()*(i+1));
-    [arr[i],arr[j]]=[arr[j],arr[i]];
-  }
+// ── RÈGLE REJOUER ─────────────────────────────────────────────
+// Rejoue si : case principale = hit ET pas coulé
+function shouldReplay(mainTarget, results){
+  const mainResult=results.find(r=>r.idx===mainTarget);
+  if(!mainResult) return false;
+  if(mainResult.result!=="hit") return false;
+  if(mainResult.sunk) return false; // coulé = pas de rejouer
+  return true;
 }
 
 // ── RÉCEPTION TIR ENNEMI ──────────────────────────────────────
-
-function handleIncomingFire(data) {
-  const {targets}=data; const results=[];
-  const newlySunkShips=[];
+function handleIncomingFire(data){
+  const {targets,mainTarget}=data;
+  const results=[]; const newlySunkShips=[];
 
   targets.forEach(ci=>{
     const shipId=state.myGrid[ci];
     if(shipId&&state.myGridState[ci]!=="hit"){
       state.myGridState[ci]="hit"; state.myShipHP[shipId]--;
-      sfxHit();
       const sunk=state.myShipHP[shipId]<=0;
       if(sunk) newlySunkShips.push(shipId);
       results.push({idx:ci,result:"hit",shipId,sunk});
     } else if(!shipId&&state.myGridState[ci]===null){
       state.myGridState[ci]="miss";
       results.push({idx:ci,result:"miss",shipId:null,sunk:false});
-      sfxMiss();
     }
   });
 
-  renderMyGrid(); buildShipStatus(); updateProgressBars();
-
-  // Cinématique côté défenseur
-  newlySunkShips.forEach(shipId=>{ showShipSunk(shipId, true); sfxSunk(); });
+  renderMainGrid(); updateProgressBars();
+  newlySunkShips.forEach(shipId=>{ showShipSunk(shipId,true); sfxSunk(); });
 
   const allSunk=SHIPS_CONFIG.every(s=>state.myShipHP[s.id]<=0);
+  const replay=shouldReplay(mainTarget,results);
 
-  // Rejouer uniquement si la case PRINCIPALE (celle cliquée) est un hit
-  const mainResult = results.find(r => r.idx === data.mainTarget);
-  const anyHit = mainResult ? mainResult.result === "hit" : false;
+  // Arme offerte si on coule un bateau
+  newlySunkShips.forEach(()=>{
+    const keys=Object.keys(WEAPONS_CONFIG);
+    publish("weapon-for-opponent",{ weaponId:keys[Math.floor(Math.random()*keys.length)] });
+  });
 
-  publish("fire-result",{results,gameOver:allSunk,anyHit,newlySunkShips});
+  publish("fire-result",{results,gameOver:allSunk,replay,newlySunkShips});
 
-  if(allSunk){endGame(false);return;}
+  if(allSunk){ endGame(false); return; }
 
-  // L'adversaire rejoue si hit, sinon c'est mon tour
-  if(!anyHit){
-    state.myTurn=true;
-    updateTurnIndicator();
+  // Si l'adversaire rejoue, le tour reste à lui → moi je n'ai pas le tour
+  if(!replay){
+    state.myTurn=true; updateTurnIndicator();
   }
-  // Si anyHit : l'adversaire continue, state.myTurn reste false
+  // Si replay : l'adversaire continue, on attend
 }
 
 // ── RÉSULTATS DE MES TIRS ─────────────────────────────────────
-
-function handleFireResult(data) {
-  const {results,gameOver,anyHit,newlySunkShips}=data;
+function handleFireResult(data){
+  const {results,gameOver,replay,newlySunkShips}=data;
 
   results.forEach(r=>{
-    if(r.result==="hit"){
-      state.opponentGrid[r.idx]="hit";
-    } else {
-      state.opponentGrid[r.idx]="miss";
-    }
+    state.opponentGrid[r.idx]=r.sunk?"sunk":r.result==="hit"?"hit":"miss";
   });
 
-  // Cinématique navires coulés côté attaquant
-  if(newlySunkShips && newlySunkShips.length>0){
+  // Si navires coulés, marquer toutes leurs cases comme sunk
+  if(newlySunkShips&&newlySunkShips.length>0){
     newlySunkShips.forEach(shipId=>{
       if(!state.opponentSunk.includes(shipId)){
         state.opponentSunk.push(shipId);
-        showShipSunk(shipId, false);
+        showShipSunk(shipId,false); sfxSunk();
+        // Arme bonus pour avoir coulé
+        const keys=Object.keys(WEAPONS_CONFIG);
+        addWeapon(keys[Math.floor(Math.random()*keys.length)]);
       }
     });
   }
 
-  renderOpponentGrid(); updateProgressBars();
-  if(gameOver){endGame(true);return;}
+  // Sons
+  const mainHit=results.find(r=>r.result==="hit"&&results[0].idx===r.idx);
+  const anyHitResult=results.some(r=>r.result==="hit");
+  if(anyHitResult&&newlySunkShips.length===0) sfxHit();
+  else if(!anyHitResult) sfxMiss();
 
-  // Distribution d'arme (seulement quand le tour change vraiment)
-  if(!anyHit){
+  renderMainGrid(); updateProgressBars();
+  if(gameOver){ endGame(true); return; }
+
+  // Distribution d'arme par intervalle
+  if(!replay){
     state.turnCount++; state.nextWeaponIn--;
     if(state.nextWeaponIn<=0){
       const keys=Object.keys(WEAPONS_CONFIG);
       addWeapon(keys[Math.floor(Math.random()*keys.length)]);
       state.nextWeaponIn=rollNextWeaponDelay();
     }
-    // Mon tour est terminé, c'est l'adversaire
     state.myTurn=false;
   } else {
-    // J'ai touché → je rejoue
     state.myTurn=true;
-    showNotif("🎯 Touché ! Tu rejoues !", 1800);
+    showNotif("🎯 Touché ! Tu rejoues !",1800);
   }
-
   updateTurnIndicator();
 }
 
-// ── TOUR ─────────────────────────────────────────────────────
-
-function updateTurnIndicator() {
-  const el=document.getElementById("turn-indicator");
-  const txt=document.getElementById("turn-text");
-  el.className="turn-indicator";
-  if(state.myTurn){
-    el.classList.add("my-turn");
-    txt.textContent="🎯 À TOI DE TIRER !";
-    startTimer();
-  } else {
-    el.classList.add("opp-turn");
-    txt.textContent=`⏳ ${state.opponentPseudo} tire...`;
-    stopTimer();
-  }
-}
-
-// ── TIMER ─────────────────────────────────────────────────────
-
-function startTimer() {
-  stopTimer();
-  state.timerSeconds = 30;
-  updateTimerBar(30);
-  state.timerInterval = setInterval(() => {
-    state.timerSeconds--;
-    updateTimerBar(state.timerSeconds);
-    if (state.timerSeconds <= 0) {
-      stopTimer();
-      autoFire();
+// ── BOT MODE ──────────────────────────────────────────────────
+function processBotDefense(targets,weapon,mainTarget){
+  const results=[]; const newlySunkShips=[];
+  targets.forEach(ci=>{
+    const shipId=state.botGrid[ci];
+    if(shipId&&state.opponentGrid[ci]===null){
+      state.opponentGrid[ci]="hit"; state.botShipHP[shipId]--;
+      const sunk=state.botShipHP[shipId]<=0;
+      if(sunk){ newlySunkShips.push(shipId); state.opponentGrid[ci]="sunk"; }
+      results.push({idx:ci,result:"hit",shipId,sunk});
+    } else if(!shipId&&state.opponentGrid[ci]===null){
+      state.opponentGrid[ci]="miss";
+      results.push({idx:ci,result:"miss",shipId:null,sunk:false});
     }
-  }, 1000);
-}
-
-function stopTimer() {
-  if (state.timerInterval) {
-    clearInterval(state.timerInterval);
-    state.timerInterval = null;
-  }
-  updateTimerBar(0);
-}
-
-function updateTimerBar(seconds) {
-  const bar = document.getElementById("timer-bar");
-  const label = document.getElementById("timer-label");
-  if (!bar || !label) return;
-  const pct = (seconds / 30) * 100;
-  bar.style.width = pct + "%";
-  label.textContent = seconds > 0 ? seconds + "s" : "";
-  // Couleur : vert → orange → rouge
-  if (seconds > 15) {
-    bar.style.background = "var(--green)";
-  } else if (seconds > 8) {
-    bar.style.background = "var(--yellow)";
-  } else {
-    bar.style.background = "var(--coral)";
-  }
-}
-
-function autoFire() {
-  if (!state.myTurn) return;
-  // Tir aléatoire sur une case non encore ciblée
-  const available = [];
-  for (let i = 0; i < 100; i++) {
-    if (state.opponentGrid[i] === null) available.push(i);
-  }
-  if (available.length === 0) return;
-  const randIdx = available[Math.floor(Math.random() * available.length)];
-  showNotif("⏰ Temps écoulé ! Tir automatique !", 2000);
-  // Force tir normal
-  const prevWeapon = state.selectedWeapon;
-  state.selectedWeapon = "normal";
-  fireAtCell(randIdx);
-  state.selectedWeapon = prevWeapon;
-}
-
-// ── PROGRESSION ───────────────────────────────────────────────
-
-function updateProgressBars() {
-  // Cases adverses restantes
-  const oppHit = state.opponentGrid.filter(v => v === "hit").length;
-  const oppRemaining = state.opponentTotalCells - oppHit;
-  const oppPct = state.opponentTotalCells > 0
-    ? (oppHit / state.opponentTotalCells) * 100 : 0;
-
-  const oppBar = document.getElementById("prog-opp-bar");
-  const oppLabel = document.getElementById("prog-opp-label");
-  const oppShips = document.getElementById("prog-opp-ships");
-  if (oppBar) oppBar.style.width = oppPct + "%";
-  if (oppLabel) oppLabel.textContent = oppRemaining + " cases";
-
-  // Bateaux adverses restants
-  const oppSunkCount = state.opponentSunk.length;
-  const oppShipsLeft = SHIPS_CONFIG.length - oppSunkCount;
-  if (oppShips) oppShips.textContent = "🚢".repeat(oppShipsLeft) + "💀".repeat(oppSunkCount);
-
-  // Cases de ma flotte restantes
-  const myHit = state.myGridState.filter(v => v === "hit").length;
-  const myTotal = state.opponentTotalCells; // même total
-  const myRemaining = myTotal - myHit;
-  const myPct = myTotal > 0 ? (myHit / myTotal) * 100 : 0;
-
-  const myBar = document.getElementById("prog-my-bar");
-  const myLabel = document.getElementById("prog-my-label");
-  const myShips = document.getElementById("prog-my-ships");
-  if (myBar) myBar.style.width = myPct + "%";
-  if (myLabel) myLabel.textContent = myRemaining + " cases";
-
-  // Mes bateaux restants
-  const mySunkCount = SHIPS_CONFIG.filter(s => state.myShipHP[s.id] <= 0).length;
-  const myShipsLeft = SHIPS_CONFIG.length - mySunkCount;
-  if (myShips) myShips.textContent = "🚢".repeat(myShipsLeft) + "💀".repeat(mySunkCount);
-}
-
-function buildShipStatus() {
-  const container=document.getElementById("my-ships-status"); container.innerHTML="";
-  SHIPS_CONFIG.forEach(ship=>{
-    const sunk=state.myShipHP[ship.id]<=0;
-    const el=document.createElement("div");
-    el.className=`ship-status-item${sunk?" sunk-ship":""}`;
-    el.innerHTML=`<div class="ship-status-dot${sunk?" sunk":""}"></div><span>${ship.emoji} ${ship.name}</span>`;
-    container.appendChild(el);
   });
+
+  newlySunkShips.forEach(shipId=>{
+    if(!state.opponentSunk.includes(shipId)){
+      state.opponentSunk.push(shipId);
+      showShipSunk(shipId,false); sfxSunk();
+      // Arme bonus
+      const keys=Object.keys(WEAPONS_CONFIG);
+      addWeapon(keys[Math.floor(Math.random()*keys.length)]);
+    }
+  });
+
+  const anyHit=results.some(r=>r.result==="hit");
+  if(anyHit&&newlySunkShips.length===0) sfxHit();
+  else if(!anyHit) sfxMiss();
+
+  renderMainGrid(); updateProgressBars();
+
+  const allBotSunk=SHIPS_CONFIG.every(s=>state.botShipHP[s.id]<=0);
+  if(allBotSunk){ endGame(true); return; }
+
+  // Distribution arme intervalle
+  const given=state.bot.tickWeapon();
+  if(given) addWeapon(given);
+
+  const replay=shouldReplay(mainTarget,results);
+  if(replay){
+    state.myTurn=true;
+    showNotif("🎯 Touché ! Tu rejoues !",1800);
+    updateTurnIndicator();
+  } else {
+    state.myTurn=false;
+    updateTurnIndicator();
+    setTimeout(doBotTurn,BOT_DELAY_MS);
+  }
 }
 
-// ── CHAT ─────────────────────────────────────────────────────
+function doBotTurn(){
+  if(!state.vsBot) return;
+  const {mainIdx,weapon,targets}=state.bot.decideShot(state.myGridState);
+  if(weapon==="atomic") sfxAtomic();
 
+  const results=[]; const newlySunkShips=[];
+  const filtered=targets.filter(ci=>state.myGridState[ci]===null);
+
+  filtered.forEach(ci=>{
+    const shipId=state.myGrid[ci];
+    if(shipId){
+      state.myGridState[ci]="hit"; state.myShipHP[shipId]--;
+      sfxHit();
+      const sunk=state.myShipHP[shipId]<=0;
+      if(sunk) newlySunkShips.push(shipId);
+      results.push({idx:ci,result:"hit",shipId,sunk});
+    } else {
+      state.myGridState[ci]="miss"; sfxMiss();
+      results.push({idx:ci,result:"miss",shipId:null,sunk:false});
+    }
+  });
+
+  state.bot.processFeedback(filtered,results,state.myGridState);
+  renderMainGrid(); updateProgressBars();
+  newlySunkShips.forEach(shipId=>{ showShipSunk(shipId,true); sfxSunk(); });
+
+  const allSunk=SHIPS_CONFIG.every(s=>state.myShipHP[s.id]<=0);
+  if(allSunk){ endGame(false); return; }
+
+  const replay=shouldReplay(mainIdx,results);
+  if(replay){
+    showNotif(`⚠️ ${state.opponentPseudo} a touché ! Il rejoue...`,1800);
+    setTimeout(doBotTurn,BOT_DELAY_MS);
+  } else {
+    state.myTurn=true; updateTurnIndicator();
+  }
+}
+
+// ── CHAT ──────────────────────────────────────────────────────
 document.getElementById("btn-send-chat").addEventListener("click",sendChat);
-document.getElementById("chat-input").addEventListener("keydown",e=>{if(e.key==="Enter")sendChat();});
+document.getElementById("chat-input").addEventListener("keydown",e=>{ if(e.key==="Enter") sendChat(); });
 document.querySelectorAll(".emoji-btn").forEach(btn=>{
   btn.addEventListener("click",()=>{
     const emoji=btn.dataset.emoji;
     publish("chat",{text:emoji}); addChatMessage(state.pseudo,emoji,true);
   });
 });
-
 function sendChat(){
   const input=document.getElementById("chat-input"); const text=input.value.trim();
   if(!text) return;
   publish("chat",{text}); addChatMessage(state.pseudo,text,true); input.value="";
 }
-
 function addChatMessage(sender,text,isMe){
   const box=document.getElementById("chat-messages");
   const msg=document.createElement("div");
@@ -768,150 +772,26 @@ function addChatMessage(sender,text,isMe){
 }
 
 // ── FIN DE PARTIE ─────────────────────────────────────────────
-
-// ── LOGIQUE BOT ───────────────────────────────────────────────
-
-function processBotDefense(targets, weapon) {
-  // Calculer les résultats sur la grille du bot
-  const results = [];
-  const newlySunkShips = [];
-
-  targets.forEach(ci => {
-    const shipId = state.botGrid[ci];
-    if (shipId && state.opponentGrid[ci] === null) {
-      state.opponentGrid[ci] = "hit";
-      state.botShipHP[shipId]--;
-      const sunk = state.botShipHP[shipId] <= 0;
-      if (sunk) newlySunkShips.push(shipId);
-      results.push({ idx: ci, result: "hit", shipId, sunk });
-    } else if (!shipId && state.opponentGrid[ci] === null) {
-      state.opponentGrid[ci] = "miss";
-      results.push({ idx: ci, result: "miss", shipId: null, sunk: false });
-    }
-  });
-
-  renderOpponentGrid(); updateProgressBars();
-
-  // Cinématique navires coulés
-  newlySunkShips.forEach(shipId => {
-    if (!state.opponentSunk.includes(shipId)) {
-      state.opponentSunk.push(shipId);
-      showShipSunk(shipId, false);
-      sfxSunk();
-    }
-  });
-
-  // Rejouer uniquement si la case PRINCIPALE est un hit
-  const mainResult = results.find(r => r.idx === targets[0]);
-  const anyHit = mainResult ? mainResult.result === "hit" : false;
-  if (!anyHit) sfxMiss();
-  else if (newlySunkShips.length === 0) sfxHit();
-
-  // Vérifier victoire joueur
-  const allBotSunk = SHIPS_CONFIG.every(s => state.botShipHP[s.id] <= 0);
-  if (allBotSunk) { endGame(true); return; }
-
-  // Distribution d'arme
-  const givenWeapon = state.bot.tickWeapon();
-  if (givenWeapon) { addWeapon(givenWeapon); }
-
-  if (anyHit) {
-    // Le joueur rejoue
-    state.myTurn = true;
-    showNotif("🎯 Touché ! Tu rejoues !", 1800);
-    updateTurnIndicator();
-  } else {
-    // Tour du bot
-    state.myTurn = false;
-    updateTurnIndicator();
-    setTimeout(doBotTurn, BOT_DELAY_MS);
-  }
-}
-
-function doBotTurn() {
-  if (!state.vsBot) return;
-
-  // Le bot choisit son tir
-  const { mainIdx, weapon, targets } = state.bot.decideShot(state.myGridState.map((v,i) => v));
-
-  // Son atomique si applicable
-  if (weapon === "atomic") sfxAtomic();
-
-  // Calculer les résultats sur la grille du joueur
-  const results = [];
-  const newlySunkShips = [];
-  const filteredTargets = targets.filter(ci => state.myGridState[ci] === null);
-
-  filteredTargets.forEach(ci => {
-    const shipId = state.myGrid[ci];
-    if (shipId) {
-      state.myGridState[ci] = "hit";
-      state.myShipHP[shipId]--;
-      sfxHit();
-      const sunk = state.myShipHP[shipId] <= 0;
-      if (sunk) newlySunkShips.push(shipId);
-      results.push({ idx: ci, result: "hit", shipId, sunk });
-    } else {
-      state.myGridState[ci] = "miss";
-      sfxMiss();
-      results.push({ idx: ci, result: "miss", shipId: null, sunk: false });
-    }
-  });
-
-  // Feedback au bot pour sa stratégie
-  state.bot.processFeedback(filteredTargets, results, state.myGridState);
-
-  renderMyGrid();
-  buildShipStatus();
-
-  // Cinématique navires coulés
-  newlySunkShips.forEach(shipId => { showShipSunk(shipId, true); sfxSunk(); });
-
-  // Vérifier défaite joueur
-  const allPlayerSunk = SHIPS_CONFIG.every(s => state.myShipHP[s.id] <= 0);
-  if (allPlayerSunk) { endGame(false); return; }
-
-  // Le bot rejoue seulement si sa case principale était un hit
-  const botMainResult = results.find(r => r.idx === mainIdx);
-  const anyHit = botMainResult ? botMainResult.result === "hit" : false;
-
-  if (anyHit) {
-    // Bot rejoue
-    showNotif(`⚠️ ${state.opponentPseudo} a touché ! Il rejoue...`, 1800);
-    setTimeout(doBotTurn, BOT_DELAY_MS);
-  } else {
-    // Retour au joueur
-    state.myTurn = true;
-    updateTurnIndicator();
-  }
-}
-
 function endGame(iWon){
   stopTimer();
   if(iWon){ state.score.me++; sfxVictory(); } else { state.score.opp++; sfxDefeat(); }
   document.getElementById("end-icon").textContent=iWon?"🏆":"💀";
   document.getElementById("end-title").textContent=iWon?"Victoire !":"Défaite !";
-  document.getElementById("end-subtitle").textContent=iWon
-    ?"Tu as coulé toute la flotte adverse ! Bravo !"
-    :"Ta flotte a été anéantie... Courage !";
+  document.getElementById("end-subtitle").textContent=iWon?"Tu as coulé toute la flotte adverse ! Bravo !":"Ta flotte a été anéantie... Courage !";
   document.getElementById("end-score-me").textContent=`${state.pseudo} : ${state.score.me}`;
   document.getElementById("end-score-opp").textContent=`${state.opponentPseudo} : ${state.score.opp}`;
   showScreen("screen-end");
 }
 
 document.getElementById("btn-replay").addEventListener("click",()=>{
-  if (state.vsBot) {
-    // Replacer les bateaux du bot
-    const { grid, ships } = Bot.placeShips(SHIPS_CONFIG);
-    state.botGrid = grid;
-    state.botShipHP = {};
-    SHIPS_CONFIG.forEach(s => { state.botShipHP[s.id] = s.size; });
+  if(state.vsBot){
+    const {grid}=Bot.placeShips(SHIPS_CONFIG);
+    state.botGrid=grid; state.botShipHP={};
+    SHIPS_CONFIG.forEach(s=>{ state.botShipHP[s.id]=s.size; });
     state.bot.reset();
-    startPlacement();
-    return;
+    startPlacement(); return;
   }
-  publish("replay",{});
-  startPlacement();
+  publish("replay",{}); startPlacement();
 });
 
 function updateScoreBar(){
@@ -919,4 +799,4 @@ function updateScoreBar(){
   document.getElementById("score-val-opp").textContent=state.score.opp;
 }
 
-window.addEventListener("beforeunload",()=>{if(state.channel) publish("disconnect",{});});
+window.addEventListener("beforeunload",()=>{ if(state.channel) publish("disconnect",{}); });
