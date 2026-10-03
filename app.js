@@ -37,6 +37,7 @@ const state = {
   myTurn:false,
   weapons:{ cross:0, random:0, atomic:0 },
   weaponCaps:{ cross:3, random:1, atomic:1 }, // stock max par partie
+  weaponReceived:{ cross:0, random:0, atomic:0 }, // total reçu (pour le cap)
   selectedWeapon:"normal",
   turnCount:0, nextWeaponIn:0,
   score:{ me:0, opp:0 },
@@ -323,6 +324,7 @@ function startGame(myTurnFirst){
   state.myGridState=Array(100).fill(null);
   state.weapons={cross:0,random:0,atomic:0};
   state.weaponCaps={cross:3,random:1,atomic:1};
+  state.weaponReceived={cross:0,random:0,atomic:0};
   state.selectedWeapon="normal";
   state.turnCount=0; state.nextWeaponIn=rollNextWeaponDelay();
   state.myShipHP={}; state.opponentSunk=[];
@@ -517,18 +519,19 @@ function updateWeaponCounts(){
   });
 }
 function addWeapon(weaponId){
-  // Vérifier si le cap est atteint pour cette arme
-  const currentTotal = state.weapons[weaponId];
+  // Vérifier le total reçu (pas le stock actuel — le joueur peut avoir utilisé l'arme)
+  const totalReceived = state.weaponReceived[weaponId];
   const cap = state.weaponCaps[weaponId];
-  if(currentTotal >= cap){
+  if(totalReceived >= cap){
     // Cap atteint — essayer une autre arme disponible
     const available = Object.keys(WEAPONS_CONFIG).filter(k =>
-      state.weapons[k] < state.weaponCaps[k]
+      state.weaponReceived[k] < state.weaponCaps[k]
     );
-    if(available.length === 0) return; // toutes les armes sont à leur cap
+    if(available.length === 0) return; // tous les caps atteints
     weaponId = available[Math.floor(Math.random() * available.length)];
   }
   state.weapons[weaponId]++;
+  state.weaponReceived[weaponId]++;
   updateWeaponCounts();
   showWeaponReceived(weaponId);
   sfxWeaponReceived();
@@ -708,9 +711,9 @@ function processBotDefense(targets,weapon,mainTarget){
   const allBotSunk=SHIPS_CONFIG.every(s=>state.botShipHP[s.id]<=0);
   if(allBotSunk){ endGame(true); return; }
 
-  // Distribution arme intervalle
+  // Distribution arme intervalle (respecte les caps)
   const given=state.bot.tickWeapon();
-  if(given) addWeapon(given);
+  if(given) addWeapon(given); // addWeapon vérifie les caps
 
   const replay=shouldReplay(mainTarget,results);
   if(replay){
